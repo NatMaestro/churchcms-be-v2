@@ -74,6 +74,7 @@ INSTALLED_APPS = list(SHARED_APPS) + [app for app in TENANT_APPS if app not in S
 # Middleware
 MIDDLEWARE = [
     'django_tenants.middleware.main.TenantMainMiddleware',  # Must be first
+    'core.middleware_dev.TenantQueryMiddleware',  # Query param tenant selection (for Render free tier)
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',

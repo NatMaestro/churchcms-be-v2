@@ -1,0 +1,81 @@
+# Django and DRF Core
+Django==4.2.11
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+
+# Authentication & Security
+djangorestframework-simplejwt==5.3.1
+django-rest-knox==4.2.0
+argon2-cffi==23.1.0
+cryptography==42.0.0
+
+# Multi-tenancy
+django-tenants==3.6.1
+
+# PostgreSQL (Neon compatible)
+# Using psycopg (v3) instead of psycopg2 for better Windows compatibility
+psycopg[binary]==3.1.18
+dj-database-url
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# API Documentation
+drf-spectacular==0.27.0
+drf-yasg==1.21.7
+
+# Performance & Caching
+django-redis==5.4.0
+redis==5.0.1
+django-celery-beat==2.5.0
+celery==5.3.4
+
+# File Upload & Storage
+# Pillow==10.2.0
+django-storages==1.14.2
+boto3==1.34.22
+
+# Data Processing
+openpyxl==3.1.2
+python-dateutil==2.8.2
+pytz==2024.1
+
+# Rate Limiting
+django-ratelimit==4.1.0
+
+# Monitoring & Logging
+django-extensions==3.2.3
+sentry-sdk==1.39.2
+
+# Testing
+pytest==7.4.4
+pytest-django==4.7.0
+factory-boy==3.3.0
+faker==22.0.0
+
+# Code Quality
+black==24.1.1
+flake8==7.0.0
+isort==5.13.2
+
+# Utilities
+django-filter==23.5
+django-import-export==3.3.6
+phonenumbers==8.13.28
+django-phonenumber-field==7.3.0
+django-countries==7.5.1
+bleach==6.1.0
+markdown==3.5.2
+
+# WebSocket Support (for future real-time features)
+channels==4.0.0
+channels-redis==4.2.0
+daphne==4.0.0
+
+# Email
+django-anymail==10.2
+
+# Production Server
+gunicorn==21.2.0
+whitenoise==6.6.0
+

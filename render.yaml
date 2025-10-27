@@ -1,0 +1,43 @@
+services:
+  # Django Backend Service
+  - type: web
+    name: faithflow-backend
+    runtime: python
+    region: ohio
+    plan: free
+    buildCommand: |
+      pip install -r requirements.txt
+      python manage.py collectstatic --no-input
+      python manage.py migrate_schemas --shared --no-input
+      python manage.py migrate_schemas --no-input
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: faithflow-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: .onrender.com,.faithflows.com,*.faithflows.com
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings
+      - key: SETUP_TOKEN
+        generateValue: true
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://faithflow-studio.vercel.app,https://faithflows.com
+    autoDeploy: true
+
+databases:
+  # PostgreSQL Database
+  - name: faithflow-db
+    databaseName: faithflow
+    user: faithflow
+    region: ohio
+    plan: free
+    ipAllowList: []
+

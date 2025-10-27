@@ -10,7 +10,7 @@ services:
       python manage.py collectstatic --no-input
       python manage.py migrate_schemas --shared --no-input
       python manage.py migrate_schemas --no-input
-    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+    startCommand: gunicorn config.wsgi:application
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0

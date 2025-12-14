@@ -9,3 +9,8 @@ urlpatterns = [
     path('', AnalyticsView.as_view(), name='analytics'),
 ]
 
+
+
+
+
+

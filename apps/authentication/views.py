@@ -9,15 +9,19 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
+from django.db import connection, transaction
+from django.conf import settings
 from .serializers import (
     UserSerializer,
     RegisterSerializer,
     CustomTokenObtainPairSerializer,
     ChangePasswordSerializer,
     ForgotPasswordSerializer,
-    ResetPasswordSerializer
+    ResetPasswordSerializer,
+    ChurchRegistrationSerializer
 )
 from .models import PasswordResetToken
+from apps.churches.models import Church, Domain
 from django.utils import timezone
 from datetime import timedelta
 import secrets
@@ -35,6 +39,149 @@ class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
     
     def post(self, request):
+        # Check if this is a church registration (has church_name and subdomain)
+        if 'church_name' in request.data and 'subdomain' in request.data:
+            # Use church registration flow
+            serializer = ChurchRegistrationSerializer(data=request.data)
+            if serializer.is_valid():
+                # Use transaction to ensure atomicity - if user creation fails, rollback church
+                try:
+                    validated_data = serializer.validated_data
+                    
+                    # Start transaction in public schema
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    
+                    logger.info(f"🏗️  Starting church registration for: {validated_data['church_name']}")
+                    logger.info(f"   Subdomain: {validated_data['subdomain']}")
+                    logger.info(f"   Admin: {validated_data['name']} ({validated_data['email']})")
+                    
+                    with transaction.atomic():
+                        # Step 1: Create church (in public schema)
+                        logger.info("📋 Step 1/4: Creating church record...")
+                        church = Church.objects.create(
+                            schema_name=validated_data['subdomain'],
+                            name=validated_data['church_name'],
+                            subdomain=validated_data['subdomain'],
+                            email=validated_data['email'],
+                            denomination=validated_data.get('denomination', ''),
+                            features=validated_data.get('features', {}),
+                            plan='trial',
+                            is_active=True
+                        )
+                        logger.info(f"   ✅ Church created: {church.name} (ID: {church.id})")
+                        
+                        # Log enabled features
+                        features = validated_data.get('features', {})
+                        if features:
+                            enabled_features = [name for name, enabled in features.items() if enabled]
+                            disabled_features = [name for name, enabled in features.items() if not enabled]
+                            
+                            if enabled_features:
+                                logger.info(f"   🎯 Enabled features ({len(enabled_features)}):")
+                                for feature in enabled_features:
+                                    logger.info(f"      ✅ {feature}")
+                            
+                            if disabled_features:
+                                logger.info(f"   ⚪ Disabled features ({len(disabled_features)}):")
+                                for feature in disabled_features[:5]:  # Show first 5
+                                    logger.info(f"      ⭕ {feature}")
+                                if len(disabled_features) > 5:
+                                    logger.info(f"      ... and {len(disabled_features) - 5} more")
+                        else:
+                            logger.info("   🎯 Using default features (no custom configuration)")
+                        
+                        # Step 2: Create domains
+                        logger.info("🌐 Step 2/4: Setting up domains...")
+                        Domain.objects.create(
+                            domain=f"{validated_data['subdomain']}.localhost",
+                            tenant=church,
+                            is_primary=True
+                        )
+                        logger.info(f"   ✅ Created domain: {validated_data['subdomain']}.localhost")
+                        
+                        # Create domain for production (if not in debug)
+                        if not settings.DEBUG:
+                            Domain.objects.create(
+                                domain=f"{validated_data['subdomain']}.faithflows.com",
+                                tenant=church,
+                                is_primary=False
+                            )
+                            logger.info(f"   ✅ Created domain: {validated_data['subdomain']}.faithflows.com")
+                        
+                        # Step 3: Switch to tenant schema and create user
+                        logger.info("👤 Step 3/4: Creating tenant schema and admin user...")
+                        connection.set_tenant(church)
+                        logger.info(f"   ✅ Switched to tenant schema: {church.schema_name}")
+                        
+                        try:
+                            # Create admin user in tenant schema
+                            admin_user = User.objects.create_user(
+                                email=validated_data['email'],
+                                password=validated_data['password'],
+                                name=validated_data['name'],
+                                church=church,
+                                role='admin',
+                                is_active=True,
+                                is_staff=True
+                            )
+                            logger.info(f"   ✅ Admin user created: {admin_user.email} (ID: {admin_user.id})")
+                            
+                            # Step 4: Generate JWT tokens
+                            logger.info("🔑 Step 4/4: Generating authentication tokens...")
+                            refresh = RefreshToken.for_user(admin_user)
+                            logger.info("   ✅ Tokens generated successfully")
+                            
+                            logger.info(f"🎉 Church registration completed successfully for: {church.name}")
+                            
+                            # Switch back to public schema for response
+                            connection.set_schema_to_public()
+                            
+                            return Response({
+                                'success': True,
+                                'message': 'Church and admin user created successfully',
+                                'user': UserSerializer(admin_user).data,
+                                'church': {
+                                    'id': church.id,
+                                    'name': church.name,
+                                    'subdomain': church.subdomain,
+                                    'schema_name': church.schema_name,
+                                },
+                                'access': str(refresh.access_token),
+                                'refresh': str(refresh),
+                            }, status=status.HTTP_201_CREATED)
+                            
+                        except Exception as user_error:
+                            # If user creation fails, rollback the church creation
+                            connection.set_schema_to_public()
+                            # Delete the church and domains we just created
+                            Domain.objects.filter(tenant=church).delete()
+                            church.delete()
+                            raise user_error
+                    
+                except Exception as e:
+                    # Switch back to public schema on error
+                    connection.set_schema_to_public()
+                    import traceback
+                    error_detail = str(e)
+                    # Check if it's a unique constraint violation
+                    if 'unique constraint' in error_detail.lower() or 'already exists' in error_detail.lower():
+                        if 'email' in error_detail.lower():
+                            error_detail = 'A user with this email already exists in this church.'
+                        elif 'subdomain' in error_detail.lower():
+                            error_detail = 'This subdomain is already taken.'
+                    
+                    return Response({
+                        'success': False,
+                        'errors': {'detail': error_detail}
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+            return Response({
+                'success': False,
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Regular user registration (no church)
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()

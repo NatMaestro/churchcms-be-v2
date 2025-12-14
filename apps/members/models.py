@@ -191,7 +191,22 @@ class MemberRequest(models.Model):
     """
     Membership application requests.
     For prospective members applying to join the church.
+    
+    Two-stage approval workflow:
+    1. pending → Initial review by admin
+    2. approved → Admin approves, goes to final confirmation
+    3. confirmed → Final approval, Member + User account created
+    4. rejected → Admin rejects at any stage
     """
+    
+    # Church (required for public submissions)
+    church = models.ForeignKey(
+        'churches.Church',
+        on_delete=models.CASCADE,
+        related_name='member_requests',
+        null=True,  # Allow null for backward compatibility, but should be set
+        blank=True
+    )
     
     # Personal Information
     name = models.CharField(max_length=255)
@@ -216,18 +231,19 @@ class MemberRequest(models.Model):
     skills = models.JSONField(default=list)
     interests = models.JSONField(default=list)
     
-    # Status
+    # Status - Two-stage approval workflow
     status = models.CharField(
         max_length=20,
         choices=[
-            ('pending', 'Pending'),
-            ('approved', 'Approved'),
+            ('pending', 'Pending Initial Review'),
+            ('approved', 'Approved - Awaiting Final Confirmation'),
+            ('confirmed', 'Confirmed - Member Account Created'),
             ('rejected', 'Rejected'),
         ],
         default='pending'
     )
     
-    # Review
+    # Review tracking
     reviewed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -236,14 +252,70 @@ class MemberRequest(models.Model):
         related_name='reviewed_requests'
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Final confirmation tracking
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='confirmed_requests',
+        related_query_name='confirmed_request'
+    )
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Notes
     notes = models.TextField(blank=True)
+    rejection_reason = models.TextField(blank=True)  # Reason if rejected
+    
+    # Created Member/User (after confirmation)
+    created_member = models.OneToOneField(
+        'members.Member',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='source_request'
+    )
+    created_user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='source_member_request'
+    )
     
     # Timestamps
     submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         db_table = 'member_requests'
         ordering = ['-submitted_at']
+        indexes = [
+            models.Index(fields=['church', 'status']),
+            models.Index(fields=['status']),
+            models.Index(fields=['email']),
+        ]
     
     def __str__(self):
         return f"{self.name} - {self.status}"
+    
+    @property
+    def is_pending(self):
+        """Check if request is pending initial review."""
+        return self.status == 'pending'
+    
+    @property
+    def is_approved(self):
+        """Check if request is approved but not yet confirmed."""
+        return self.status == 'approved'
+    
+    @property
+    def is_confirmed(self):
+        """Check if request is confirmed and member account created."""
+        return self.status == 'confirmed'
+    
+    @property
+    def is_rejected(self):
+        """Check if request is rejected."""
+        return self.status == 'rejected'

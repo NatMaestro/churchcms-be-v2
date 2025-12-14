@@ -11,3 +11,8 @@ router.register(r'preferences', NotificationPreferenceViewSet, basename='notific
 
 urlpatterns = router.urls
 
+
+
+
+
+

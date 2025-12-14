@@ -15,7 +15,7 @@ django-tenants==3.6.1
 # PostgreSQL (Neon compatible)
 # Using psycopg (v3) instead of psycopg2 for better Windows compatibility
 psycopg[binary]==3.2.3
-dj-database-url
+dj-database-url==2.1.0
 
 # Environment Variables
 python-dotenv==1.0.0

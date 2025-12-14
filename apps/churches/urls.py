@@ -10,3 +10,8 @@ router.register(r'', ChurchViewSet, basename='church')
 
 urlpatterns = router.urls
 
+
+
+
+
+

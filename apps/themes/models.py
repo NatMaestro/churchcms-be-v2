@@ -11,10 +11,12 @@ class Theme(models.Model):
     Each church can have a custom theme.
     """
     
-    church = models.ForeignKey(
-        'churches.Church',
-        on_delete=models.CASCADE,
-        related_name='themes'
+    # Store church_id as integer (avoid cross-schema FK)
+    # The actual Church object is in public schema
+    church_id = models.BigIntegerField(
+        db_index=True,
+        help_text="ID of the church this theme belongs to",
+        default=0  # Temporary default for migration
     )
     
     # Theme Data (JSON field)
@@ -32,7 +34,7 @@ class Theme(models.Model):
         ordering = ['-updated_at']
     
     def __str__(self):
-        return f"Theme for {self.church.name}"
+        return f"Theme for church #{self.church_id}"
     
     def get_theme_data(self):
         """Get theme with defaults."""

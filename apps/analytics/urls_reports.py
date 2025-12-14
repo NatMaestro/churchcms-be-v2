@@ -11,3 +11,8 @@ urlpatterns = [
     # path('events/', EventReportView.as_view()),
 ]
 
+
+
+
+
+

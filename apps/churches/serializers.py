@@ -52,3 +52,8 @@ class ChurchDetailSerializer(ChurchSerializer):
         """Get total event count."""
         return 0  # Placeholder
 
+
+
+
+
+

@@ -16,10 +16,30 @@ def create_event_notifications(sender, instance, created, **kwargs):
     if created:
         from apps.notifications.models import Notification
         from apps.authentication.models import User
+        from django.db import connection
+        from apps.churches.models import Church
         
-        # Get all members of the church
+        # Get church from tenant context or creator's church
+        church = None
+        try:
+            # Try to get church from current tenant
+            tenant = connection.get_tenant()
+            if tenant and isinstance(tenant, Church):
+                church = tenant
+        except:
+            pass
+        
+        # Fallback: get church from creator
+        if not church and instance.created_by and instance.created_by.church:
+            church = instance.created_by.church
+        
+        if not church:
+            # Can't determine church, skip notification creation
+            return
+        
+        # Get all members of the church (in tenant schema, all users are members of this church)
         users = User.objects.filter(
-            church=instance.church,
+            church=church,
             role='member',
             is_active=True
         )
@@ -58,14 +78,42 @@ def create_announcement_notifications(sender, instance, created, **kwargs):
     if created and instance.is_active:
         from apps.notifications.models import Notification
         from apps.authentication.models import User
+        from django.db import connection
+        from apps.churches.models import Church
+        
+        # Get church from tenant context or creator's church
+        church = None
+        try:
+            # Try to get church from current tenant
+            tenant = connection.get_tenant()
+            if tenant and isinstance(tenant, Church):
+                church = tenant
+        except Exception as e:
+            # Fallback: get church from creator
+            if instance.created_by and instance.created_by.church:
+                church = instance.created_by.church
+            else:
+                print(f"Warning: Could not determine church for announcement {instance.id}. Error: {e}")
+                return  # Cannot create notifications without a church context
+        
+        # Fallback: get church from creator if tenant context failed
+        if not church and instance.created_by and instance.created_by.church:
+            church = instance.created_by.church
+        
+        if not church:
+            print(f"Warning: No church context found for announcement {instance.id}. Skipping notification creation.")
+            return
         
         # Determine recipients based on target_audience
         if instance.target_audience == 'all':
-            users = User.objects.filter(church=instance.church, is_active=True)
+            users = User.objects.filter(church=church, is_active=True)
         elif instance.target_audience == 'members':
-            users = User.objects.filter(church=instance.church, role='member', is_active=True)
+            users = User.objects.filter(church=church, role='member', is_active=True)
+        elif instance.target_audience == 'leaders':
+            users = User.objects.filter(church=church, role__in=['admin', 'leader'], is_active=True)
         else:
-            users = User.objects.filter(church=instance.church, role='member', is_active=True)
+            # Default to members
+            users = User.objects.filter(church=church, role='member', is_active=True)
         
         # Create notifications
         notifications = []
@@ -124,6 +172,69 @@ def create_request_notifications(sender, instance, created, **kwargs):
         
         if notifications:
             Notification.objects.bulk_create(notifications)
+
+
+@receiver(post_save, sender='members.MemberRequest')
+def create_member_request_notifications(sender, instance, created, **kwargs):
+    """
+    Auto-create notifications when someone submits a membership request.
+    Notify admins when:
+    1. New request is submitted (pending)
+    2. Request is approved and needs final confirmation
+    """
+    from apps.notifications.models import Notification
+    from apps.authentication.models import User
+    
+    if not instance.church:
+        return
+    
+    # Get admins for this church
+    # Note: MemberRequest is in public schema, so we need to query public users
+    admins = User.objects.filter(
+        church=instance.church,
+        role='admin',
+        is_active=True
+    )
+    
+    notifications = []
+    
+    if created:
+        # New request submitted
+        for admin in admins:
+            notifications.append(
+                Notification(
+                    user=admin,
+                    type='member_request',
+                    title='New Membership Request',
+                    message=f"{instance.name} ({instance.email}) has requested to join your church",
+                    priority='high',
+                    metadata={
+                        'request_id': str(instance.id),
+                        'request_type': 'membership_application',
+                        'status': instance.status,
+                    }
+                )
+            )
+    elif instance.status == 'approved' and kwargs.get('update_fields') and 'status' in kwargs['update_fields']:
+        # Request approved - notify for final confirmation
+        for admin in admins:
+            notifications.append(
+                Notification(
+                    user=admin,
+                    type='member_request',
+                    title='Membership Request Approved - Awaiting Confirmation',
+                    message=f"{instance.name}'s membership request has been approved and is ready for final confirmation",
+                    priority='normal',
+                    metadata={
+                        'request_id': str(instance.id),
+                        'request_type': 'membership_application',
+                        'status': instance.status,
+                    }
+                )
+            )
+    
+    if notifications:
+        Notification.objects.bulk_create(notifications)
 
 
 @receiver(post_save, sender='payments.Payment')
@@ -208,4 +319,9 @@ def create_prayer_request_notifications(sender, instance, created, **kwargs):
         
         if notifications:
             Notification.objects.bulk_create(notifications)
+
+
+
+
+
 

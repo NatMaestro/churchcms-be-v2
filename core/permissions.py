@@ -70,3 +70,8 @@ class TenantAccessPermission(permissions.BasePermission):
         
         return True
 
+
+
+
+
+

@@ -32,3 +32,8 @@ class AnnouncementListSerializer(serializers.ModelSerializer):
             'is_active', 'is_urgent', 'created_at'
         ]
 
+
+
+
+
+

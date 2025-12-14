@@ -159,3 +159,8 @@ class PledgesAPITestCase(APITestCase):
         self.assertCreated(response)
         self.assertEqual(response.data['frequency'], 'weekly')
 
+
+
+
+
+

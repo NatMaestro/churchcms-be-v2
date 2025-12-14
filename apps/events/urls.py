@@ -10,3 +10,8 @@ router.register(r'', EventViewSet, basename='event')
 
 urlpatterns = router.urls
 
+
+
+
+
+

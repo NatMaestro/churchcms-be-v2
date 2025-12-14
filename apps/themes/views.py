@@ -21,8 +21,8 @@ class ThemeViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.is_superadmin:
             return Theme.objects.all()
-        elif user.church:
-            return Theme.objects.filter(church=user.church)
+        elif user.church_id:
+            return Theme.objects.filter(church_id=user.church_id)
         return Theme.objects.none()
     
     @action(detail=False, methods=['get'])
@@ -32,14 +32,14 @@ class ThemeViewSet(viewsets.ModelViewSet):
         
         GET /api/v1/themes/current/
         """
-        if not request.user.church:
+        if not request.user.church_id:
             return Response({
                 'success': False,
                 'error': 'No church associated with user'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            theme = Theme.objects.get(church=request.user.church, is_active=True)
+            theme = Theme.objects.get(church_id=request.user.church_id, is_active=True)
             serializer = ThemeSerializer(theme)
             return Response({
                 'success': True,
@@ -51,7 +51,7 @@ class ThemeViewSet(viewsets.ModelViewSet):
                 'success': True,
                 'theme': {
                     'id': 'default',
-                    'church': request.user.church.id,
+                    'church_id': request.user.church_id,
                     'theme': {},
                     'theme_data': Theme().get_theme_data()
                 }
@@ -65,7 +65,7 @@ class ThemeViewSet(viewsets.ModelViewSet):
         POST/PUT /api/v1/themes/save/
         Body: { "theme": {...} }
         """
-        if not request.user.church:
+        if not request.user.church_id:
             return Response({
                 'success': False,
                 'error': 'No church associated with user'
@@ -75,7 +75,7 @@ class ThemeViewSet(viewsets.ModelViewSet):
         
         # Get or create theme
         theme, created = Theme.objects.get_or_create(
-            church=request.user.church,
+            church_id=request.user.church_id,
             defaults={'theme': theme_data, 'is_active': True}
         )
         

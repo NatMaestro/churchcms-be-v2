@@ -45,3 +45,8 @@ class MinistryDetailSerializer(MinistrySerializer):
     class Meta(MinistrySerializer.Meta):
         fields = MinistrySerializer.Meta.fields + ['memberships']
 
+
+
+
+
+

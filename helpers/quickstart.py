@@ -101,3 +101,6 @@ if __name__ == '__main__':
         print("2. Run: python manage.py migrate_schemas --shared")
         print("3. Run: python manage.py migrate_schemas")
 
+
+
+

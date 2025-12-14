@@ -11,11 +11,24 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 # Hosts
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '.onrender.com,.faithflows.com,*.faithflows.com').split(',')
 
-# Database - Use Render's PostgreSQL
-DATABASES['default'] = dj_database_url.config(
+# Database - Use Neon PostgreSQL (DATABASE_URL from .env)
+DATABASE_URL = os.getenv('DATABASE_URL')
+if not DATABASE_URL:
+    raise ValueError(
+        "DATABASE_URL environment variable is required. "
+        "Please set it in your .env file with your Neon PostgreSQL connection string."
+    )
+
+# Use dj_database_url to parse DATABASE_URL (works with Neon, Render, etc.)
+db_config = dj_database_url.config(
+    default=DATABASE_URL,
     conn_max_age=600,
     conn_health_checks=True,
 )
+
+# Ensure we're using django-tenants backend
+db_config['ENGINE'] = 'django_tenants.postgresql_backend'
+DATABASES['default'] = db_config
 
 # Static Files - Use WhiteNoise
 MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
@@ -74,4 +87,9 @@ LOGGING = {
         'level': 'INFO',
     },
 }
+
+
+
+
+
 

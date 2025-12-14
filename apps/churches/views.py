@@ -137,12 +137,12 @@ class ChurchViewSet(viewsets.ModelViewSet):
             })
     
     @action(detail=True, methods=['get', 'put'])
-    def settings(self, request, pk=None):
+    def church_settings(self, request, pk=None):
         """
         Get or update church settings.
         
-        GET /api/v1/churches/:id/settings/
-        PUT /api/v1/churches/:id/settings/
+        GET /api/v1/churches/:id/church-settings/
+        PUT /api/v1/churches/:id/church-settings/
         """
         church = self.get_object()
         

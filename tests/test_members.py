@@ -165,3 +165,8 @@ class MembersAPITestCase(APITestCase):
         self.assertIn('total', response.data)
         self.assertEqual(response.data['total'], 2)
 
+
+
+
+
+

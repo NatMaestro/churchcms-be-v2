@@ -10,3 +10,8 @@ router.register(r'', DocumentViewSet, basename='document')
 
 urlpatterns = router.urls
 
+
+
+
+
+

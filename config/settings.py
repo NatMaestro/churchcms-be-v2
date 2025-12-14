@@ -8,6 +8,11 @@ from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
 
+try:
+    import dj_database_url
+except ImportError:
+    dj_database_url = None
+
 # Load environment variables
 load_dotenv()
 
@@ -109,10 +114,22 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database (Multi-tenant with PostgreSQL)
-# Using Neon PostgreSQL
+# Using Neon PostgreSQL via DATABASE_URL
 DATABASE_URL = os.getenv('DATABASE_URL', '')
-if DATABASE_URL:
-    # Parse Neon connection string
+if DATABASE_URL and dj_database_url:
+    # Use dj_database_url to parse connection string (works with Neon, Render, etc.)
+    db_config = dj_database_url.config(
+        default=DATABASE_URL,
+        conn_max_age=600,
+        conn_health_checks=False,  # Disable to prevent connection attempts to non-existent databases
+    )
+    # Ensure we're using django-tenants backend
+    db_config['ENGINE'] = 'django_tenants.postgresql_backend'
+    DATABASES = {
+        'default': db_config
+    }
+elif DATABASE_URL:
+    # Fallback: manual parsing if dj_database_url not available
     DATABASES = {
         'default': {
             'ENGINE': 'django_tenants.postgresql_backend',
@@ -128,6 +145,7 @@ if DATABASE_URL:
         }
     }
 else:
+    # Fallback for local development without DATABASE_URL
     DATABASES = {
         'default': {
             'ENGINE': 'django_tenants.postgresql_backend',
@@ -238,8 +256,14 @@ SIMPLE_JWT = {
 # CORS Settings
 CORS_ALLOWED_ORIGINS = os.getenv(
     'CORS_ALLOWED_ORIGINS',
-    'http://localhost:5173,http://localhost:3000'
+    'http://localhost:8080,http://localhost:5173,http://localhost:3000'
 ).split(',')
+
+# Allow all subdomains for local development
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://\w+\.localhost:\d+$",  # Match subdomain.localhost:port
+    r"^http://localhost:\d+$",        # Match localhost:port
+]
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
@@ -312,6 +336,8 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
 
 # Security Settings
+# Disable SSL redirect in development to prevent 301 redirects
+SECURE_SSL_REDIRECT = False  # Set to True only in production
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
@@ -375,3 +401,5 @@ RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE', 60))
 # File Upload Settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
+
+print(f"Database URL: {DATABASES}")

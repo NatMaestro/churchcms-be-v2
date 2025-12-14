@@ -28,3 +28,6 @@ echo   http://olamchurch.localhost:8000/api/docs/
 echo.
 pause
 
+
+
+

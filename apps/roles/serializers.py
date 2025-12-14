@@ -45,3 +45,8 @@ class UserRoleSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'assigned_at']
 
+
+
+
+
+

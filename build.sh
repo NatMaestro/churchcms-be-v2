@@ -15,3 +15,8 @@ python manage.py migrate_schemas --no-input
 
 echo "Build complete!"
 
+
+
+
+
+

@@ -100,3 +100,8 @@ class MinistriesAPITestCase(APITestCase):
         self.assertTrue(created)
         self.assertEqual(membership.ministry.name, 'Worship Team')
 
+
+
+
+
+

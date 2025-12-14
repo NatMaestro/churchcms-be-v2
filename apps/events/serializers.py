@@ -64,3 +64,8 @@ class EventDetailSerializer(EventSerializer):
     class Meta(EventSerializer.Meta):
         fields = EventSerializer.Meta.fields + ['registrations']
 
+
+
+
+
+

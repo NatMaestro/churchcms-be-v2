@@ -10,3 +10,8 @@ router.register(r'', MinistryViewSet, basename='ministry')
 
 urlpatterns = router.urls
 
+
+
+
+
+

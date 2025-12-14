@@ -66,3 +66,8 @@ class TaxReceiptSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'generated_at']
 
+
+
+
+
+

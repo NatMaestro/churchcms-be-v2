@@ -108,3 +108,8 @@ class AnnouncementsAPITestCase(APITestCase):
         self.assertEqual(response.status_code, 204)
         self.assertFalse(Announcement.objects.filter(id=self.announcement1.id).exists())
 
+
+
+
+
+

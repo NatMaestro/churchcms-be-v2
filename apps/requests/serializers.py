@@ -31,7 +31,12 @@ class ServiceRequestListSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServiceRequest
         fields = [
-            'id', 'member_name', 'type', 'title', 'status', 'priority',
+            'id', 'member', 'member_name', 'type', 'title', 'status', 'priority',
             'created_at'
         ]
+
+
+
+
+
 

@@ -31,3 +31,6 @@ print('\nAvailable URLs:')
 for church in churches:
     print(f'  http://{church.subdomain}.lvh.me:8000/api/docs/')
 
+
+
+

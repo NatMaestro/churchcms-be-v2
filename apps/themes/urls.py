@@ -10,3 +10,8 @@ router.register(r'', ThemeViewSet, basename='theme')
 
 urlpatterns = router.urls
 
+
+
+
+
+

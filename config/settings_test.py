@@ -56,3 +56,8 @@ DATABASES['default']['TEST'] = {
     'NAME': 'test_neondb',
 }
 
+
+
+
+
+

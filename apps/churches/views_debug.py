@@ -33,3 +33,8 @@ class DebugTenantView(APIView):
             'META_SERVER_NAME': request.META.get('SERVER_NAME'),
         })
 
+
+
+
+
+

@@ -48,3 +48,5 @@ except Church.DoesNotExist:
     for c in churches:
         print(f"   - {c.name} ({c.subdomain})")
 
+
+

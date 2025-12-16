@@ -369,3 +369,22 @@ class UserViewSet(viewsets.ModelViewSet):
         if user.is_superadmin:
             return User.objects.all()
         return User.objects.filter(church=user.church)
+    
+    def get_serializer_context(self):
+        """Add request to serializer context."""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+    
+    def create(self, request, *args, **kwargs):
+        """Create user with proper church assignment."""
+        # In multi-tenant setup, users created in a tenant schema MUST belong to that tenant's church
+        # This prevents data inconsistency where a user exists in tenant A's schema
+        # but their church field points to tenant B
+        
+        # Always force the church to be the current tenant's church
+        # This ensures data consistency regardless of what the frontend sends
+        if request.user.church:
+            request.data['church'] = request.user.church.id
+        
+        return super().create(request, *args, **kwargs)

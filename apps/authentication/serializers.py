@@ -23,13 +23,14 @@ class UserSerializer(serializers.ModelSerializer):
     
     church_name = serializers.CharField(source='church.name', read_only=True, allow_null=True)
     church_details = serializers.SerializerMethodField()
+    password = serializers.CharField(write_only=True, required=False, min_length=8)
     
     class Meta:
         model = User
         fields = [
             'id', 'email', 'name', 'role', 'church', 'church_name', 'church_details',
             'is_active', 'must_change_password', 'created_at',
-            'last_login'
+            'last_login', 'password'
         ]
         read_only_fields = ['id', 'created_at', 'last_login']
         extra_kwargs = {
@@ -41,6 +42,72 @@ class UserSerializer(serializers.ModelSerializer):
         if obj.church:
             return ChurchBasicSerializer(obj.church).data
         return None
+    
+    def validate_email(self, value):
+        """Validate email uniqueness within the current tenant schema."""
+        # In Django-tenants, each tenant has its own schema
+        # So we only check uniqueness within the current tenant's users
+        # Note: The database unique constraint on email is per-schema, so this
+        # validation is mainly for providing a better error message
+        user = self.instance  # Existing user if updating
+        request = self.context.get('request')
+        
+        if request and request.user:
+            # Get the current tenant's church
+            church = request.user.church
+            
+            # In Django-tenants, when we're in a tenant schema, User.objects
+            # already queries only that tenant's users. So we just check
+            # if email exists in the current tenant schema.
+            queryset = User.objects.filter(email=value)
+            
+            # If updating, exclude current user
+            if user:
+                queryset = queryset.exclude(id=user.id)
+            
+            # Since we're in a tenant schema, all users in this queryset
+            # are already in the current tenant. We don't need to filter by church
+            # because the schema isolation handles that.
+            if queryset.exists():
+                existing_user = queryset.first()
+                raise serializers.ValidationError(
+                    f"A user with this email already exists in this church. "
+                    f"(Existing user: {existing_user.name})"
+                )
+        
+        return value
+    
+    def create(self, validated_data):
+        """Create user with password handling."""
+        password = validated_data.pop('password', None)
+        request = self.context.get('request')
+        
+        # Ensure church is set to current tenant's church
+        # This prevents data inconsistency where user exists in tenant schema
+        # but church field points to wrong church
+        if request and request.user and request.user.church:
+            validated_data['church'] = request.user.church
+        
+        user = User.objects.create(**validated_data)
+        
+        if password:
+            user.set_password(password)
+            user.save()
+        
+        return user
+    
+    def update(self, instance, validated_data):
+        """Update user with password handling."""
+        password = validated_data.pop('password', None)
+        
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        if password:
+            instance.set_password(password)
+        
+        instance.save()
+        return instance
 
 
 class RegisterSerializer(serializers.ModelSerializer):

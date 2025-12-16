@@ -101,3 +101,5 @@ if __name__ == '__main__':
     orphaned = find_orphaned_churches()
     delete_orphaned_churches(orphaned, dry_run=not args.delete)
 
+
+

@@ -19,9 +19,18 @@ class RoleViewSet(viewsets.ModelViewSet):
     
     queryset = Role.objects.all()
     serializer_class = RoleSerializer
-    permission_classes = [permissions.IsAuthenticated, IsChurchAdmin]
+    permission_classes = [permissions.IsAuthenticated]
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
+    
+    def get_permissions(self):
+        """
+        Override to allow read access for all authenticated users,
+        but write access only for church admins.
+        """
+        if self.action in ['list', 'retrieve']:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticated(), IsChurchAdmin()]
     
     def get_queryset(self):
         """Filter roles."""
@@ -77,16 +86,66 @@ class UserRoleViewSet(viewsets.ModelViewSet):
     
     queryset = UserRole.objects.all()
     serializer_class = UserRoleSerializer
-    permission_classes = [permissions.IsAuthenticated, IsChurchAdmin]
+    permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ['user', 'role', 'is_active']
     
+    def get_permissions(self):
+        """
+        Override to allow read access for all authenticated users,
+        but write access only for church admins.
+        """
+        if self.action in ['list', 'retrieve', 'my_roles']:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticated(), IsChurchAdmin()]
+    
     def get_queryset(self):
-        """Filter user roles."""
-        return UserRole.objects.all().order_by('-assigned_at')
+        """Filter user roles based on permissions."""
+        # Church admins can see all user roles
+        if self.request.user.is_church_admin or self.request.user.is_superadmin:
+            return UserRole.objects.all().order_by('-assigned_at')
+        
+        # Regular users can only see their own roles
+        return UserRole.objects.filter(user=self.request.user, is_active=True).order_by('-assigned_at')
     
     def perform_create(self, serializer):
         """Set assigned_by to current user."""
         serializer.save(assigned_by=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def my_roles(self, request):
+        """
+        Get current user's assigned roles.
+        
+        GET /api/v1/user-roles/my-roles/
+        """
+        user_roles = UserRole.objects.filter(
+            user=request.user,
+            is_active=True
+        ).select_related('role')
+        
+        roles_data = []
+        for user_role in user_roles:
+            role = user_role.role
+            roles_data.append({
+                'id': role.id,
+                'name': role.name,
+                'description': role.description,
+                'permissions': role.permissions,
+                'color': role.color,
+                'icon': role.icon,
+                'isDefault': role.is_default,
+                'churchId': str(role.church_id) if role.church_id else '',
+                'createdAt': role.created_at.isoformat() if role.created_at else '',
+                'updatedAt': role.updated_at.isoformat() if role.updated_at else '',
+                'assignedAt': user_role.assigned_at.isoformat() if user_role.assigned_at else '',
+                'assignedBy': str(user_role.assigned_by.id) if user_role.assigned_by else '',
+                'userRoleId': str(user_role.id),
+            })
+        
+        return Response({
+            'success': True,
+            'roles': roles_data
+        })
     
     @action(detail=False, methods=['post'])
     def assign(self, request):

@@ -70,3 +70,5 @@ if __name__ == '__main__':
     subdomain = sys.argv[1]
     verify_announcements(subdomain)
 
+
+

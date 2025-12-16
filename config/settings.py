@@ -116,12 +116,26 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database (Multi-tenant with PostgreSQL)
 # Using Neon PostgreSQL via DATABASE_URL
 DATABASE_URL = os.getenv('DATABASE_URL', '')
+
+# For django-tenants, we MUST use direct connections, not connection poolers
+# Connection poolers cache connections and don't properly handle schema switching
+# Convert pooler endpoint to direct endpoint if needed
+if DATABASE_URL and '-pooler' in DATABASE_URL:
+    # Replace pooler endpoint with direct endpoint
+    # e.g., ep-xxx-pooler.us-east-1.aws.neon.tech -> ep-xxx.us-east-1.aws.neon.tech
+    DATABASE_URL = DATABASE_URL.replace('-pooler', '')
+    print(f"⚠️  Converted pooler endpoint to direct endpoint for django-tenants compatibility")
+
 if DATABASE_URL and dj_database_url:
     # Use dj_database_url to parse connection string (works with Neon, Render, etc.)
+    # NOTE: We still use direct Neon connections (no pooler), but enable limited
+    # connection reuse to avoid paying full TLS handshake cost on every request.
+    # django-tenants' TenantMainMiddleware ensures the tenant schema is set per request,
+    # so reusing a connection within CONN_MAX_AGE is safe.
     db_config = dj_database_url.config(
         default=DATABASE_URL,
-        conn_max_age=600,
-        conn_health_checks=False,  # Disable to prevent connection attempts to non-existent databases
+        conn_max_age=60,        # Reuse DB connections for up to 60 seconds
+        conn_health_checks=True # Periodically validate connections
     )
     # Ensure we're using django-tenants backend
     db_config['ENGINE'] = 'django_tenants.postgresql_backend'
@@ -130,6 +144,10 @@ if DATABASE_URL and dj_database_url:
     }
 elif DATABASE_URL:
     # Fallback: manual parsing if dj_database_url not available
+    # Ensure we're using direct endpoint, not pooler
+    if '-pooler' in DATABASE_URL:
+        DATABASE_URL = DATABASE_URL.replace('-pooler', '')
+    
     DATABASES = {
         'default': {
             'ENGINE': 'django_tenants.postgresql_backend',
@@ -138,6 +156,8 @@ elif DATABASE_URL:
             'PASSWORD': DATABASE_URL.split(':')[2].split('@')[0],
             'HOST': DATABASE_URL.split('@')[1].split('/')[0].split(':')[0],
             'PORT': '5432',
+            'CONN_MAX_AGE': 60,
+            'CONN_HEALTH_CHECKS': True,
             'OPTIONS': {
                 'sslmode': 'require',
                 'connect_timeout': 10,

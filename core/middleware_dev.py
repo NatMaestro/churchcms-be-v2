@@ -23,14 +23,29 @@ class TenantQueryMiddleware:
         self.get_response = get_response
     
     def __call__(self, request):
-        # Only use query param if subdomain routing failed
-        # Check if we're on the base domain (no subdomain)
-        host = request.get_host().split(':')[0]  # Remove port
+        # Get hostname without port
+        host = request.get_host().split(':')[0]
         
-        # Check if tenant query parameter is provided
-        tenant_subdomain = request.GET.get('tenant')
+        # Extract tenant subdomain from Render hostname format: subdomain.faithflow-be.onrender.com
+        tenant_subdomain = None
         
-        if tenant_subdomain and host in ['localhost', '127.0.0.1', 'faithflow-be.onrender.com']:
+        # Check if we're on Render free tier domain
+        if host.endswith('faithflow-be.onrender.com'):
+            # Extract subdomain if present (e.g., "apostolicchurch" from "apostolicchurch.faithflow-be.onrender.com")
+            if host != 'faithflow-be.onrender.com':
+                # Has subdomain: extract it
+                tenant_subdomain = host.replace('.faithflow-be.onrender.com', '')
+            # else: No subdomain, treat as public domain (tenant_subdomain remains None)
+        
+        # Fallback: Check query parameter (for localhost or when subdomain extraction fails)
+        if not tenant_subdomain:
+            tenant_subdomain = request.GET.get('tenant')
+            # Only use query param on specific hosts
+            if tenant_subdomain and host not in ['localhost', '127.0.0.1', 'faithflow-be.onrender.com']:
+                tenant_subdomain = None
+        
+        # Set tenant if subdomain found
+        if tenant_subdomain:
             try:
                 # Get church by subdomain
                 church = Church.objects.get(subdomain=tenant_subdomain)

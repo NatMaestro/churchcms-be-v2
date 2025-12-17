@@ -78,8 +78,9 @@ INSTALLED_APPS = list(SHARED_APPS) + [app for app in TENANT_APPS if app not in S
 
 # Middleware
 MIDDLEWARE = [
-    'django_tenants.middleware.main.TenantMainMiddleware',  # Must be first
-    'core.middleware_dev.TenantQueryMiddleware',  # Query param tenant selection (for Render free tier)
+    # TenantHeaderMiddleware reads X-Tenant-Subdomain header and sets tenant
+    # TenantMainMiddleware is kept as fallback for subdomain-based routing (optional)
+    'core.middleware_dev.TenantHeaderMiddleware',  # Header-based tenant selection (primary) # Fallback: subdomain routing (optional)
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -276,6 +277,7 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'x-tenant-subdomain',  # Custom header for tenant identification
 ]
 
 # API Documentation (Spectacular)

@@ -136,72 +136,109 @@ def initialize_subscription_payment(request):
         # Get callback URL - Point to frontend callback page for better UX
         # The frontend page will then call the verify endpoint
         # Construct frontend URL using church's subdomain
-        from urllib.parse import urlparse
+        # Initialize variables to avoid UnboundLocalError
+        callback_url = None
+        scheme = 'https'
+        base_domain = 'faithflow360.com'
+        port = None
         
-        # Get FRONTEND_URL from settings (e.g., https://faithflow360.com or http://localhost:5173)
-        frontend_base = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
-        parsed_base = urlparse(frontend_base)
-        
-        # Try to get frontend URL from request Origin header first (most reliable)
-        origin = request.META.get('HTTP_ORIGIN', '')
-        referer = request.META.get('HTTP_REFERER', '')
-        
-        # Determine the base domain and scheme
-        # Filter out API domains - we only want frontend domains
-        if origin and 'api.' not in origin.lower():
-            # Extract from Origin header (e.g., https://apostolic.faithflow360.com)
-            parsed = urlparse(origin)
-            scheme = parsed.scheme
-            # Extract base domain: apostolic.faithflow360.com -> faithflow360.com
-            domain_parts = parsed.netloc.split(':')[0].split('.')  # Remove port
-            if len(domain_parts) >= 2 and domain_parts[-2] != 'localhost':
-                # Production: subdomain.domain.com -> domain.com
-                base_domain = '.'.join(domain_parts[-2:])
-            elif 'localhost' in parsed.netloc:
-                # Localhost: subdomain.localhost:5173 -> localhost
-                base_domain = 'localhost'
-                port = parsed.port if parsed.port else '5173'
-            else:
-                base_domain = parsed.netloc.split(':')[0]
-                port = parsed.port if parsed.port else None
-        elif referer:
-            # Fallback to Referer header
-            parsed = urlparse(referer)
-            scheme = parsed.scheme
-            domain_parts = parsed.netloc.split(':')[0].split('.')
-            if len(domain_parts) >= 2 and domain_parts[-2] != 'localhost':
-                base_domain = '.'.join(domain_parts[-2:])
-            elif 'localhost' in parsed.netloc:
-                base_domain = 'localhost'
-                port = parsed.port if parsed.port else '5173'
-            else:
-                base_domain = parsed.netloc.split(':')[0]
-                port = parsed.port if parsed.port else None
-        else:
-            # Fallback: extract base domain from FRONTEND_URL
+        try:
+            from urllib.parse import urlparse
+            
+            # Get FRONTEND_URL from settings (e.g., https://faithflow360.com or http://localhost:5173)
+            frontend_base = getattr(settings, 'FRONTEND_URL', 'http://localhost:8080')
+            parsed_base = urlparse(frontend_base)
+            
+            # Initialize defaults from FRONTEND_URL setting
             scheme = parsed_base.scheme
             domain_parts = parsed_base.netloc.split(':')[0].split('.')
             if len(domain_parts) >= 2 and domain_parts[-2] != 'localhost':
                 base_domain = '.'.join(domain_parts[-2:])
             else:
                 base_domain = parsed_base.netloc.split(':')[0]
-            port = parsed_base.port if hasattr(parsed_base, 'port') and parsed_base.port else None
-        
-        # Construct callback URL with church subdomain
-        if church.subdomain:
-            if 'localhost' in base_domain:
-                # Local development: http://{subdomain}.localhost:5173
-                port_str = f":{port}" if port else ":5173"
-                callback_url = f"{scheme}://{church.subdomain}.{base_domain}{port_str}/subscription/payment/callback"
+            # Extract port from netloc (format: hostname:port)
+            try:
+                if ':' in parsed_base.netloc:
+                    port = int(parsed_base.netloc.split(':')[1])
+                else:
+                    port = None
+            except (ValueError, IndexError):
+                port = None
+            
+            # Try to get frontend URL from request Origin header first (most reliable)
+            origin = request.META.get('HTTP_ORIGIN', '')
+            referer = request.META.get('HTTP_REFERER', '')
+            
+            # Determine the base domain and scheme from headers if available
+            # Filter out API domains - we only want frontend domains
+            if origin and 'api.' not in origin.lower():
+                # Extract from Origin header (e.g., https://apostolic.faithflow360.com)
+                parsed = urlparse(origin)
+                scheme = parsed.scheme
+                # Extract base domain: apostolic.faithflow360.com -> faithflow360.com
+                domain_parts = parsed.netloc.split(':')[0].split('.')  # Remove port
+                if len(domain_parts) >= 2 and domain_parts[-2] != 'localhost':
+                    # Production: subdomain.domain.com -> domain.com
+                    base_domain = '.'.join(domain_parts[-2:])
+                    port = None  # No port for production
+                elif 'localhost' in parsed.netloc:
+                    # Localhost: subdomain.localhost:5173 -> localhost
+                    base_domain = 'localhost'
+                    port = parsed.port if parsed.port else 5173
+                else:
+                    base_domain = parsed.netloc.split(':')[0]
+                    port = parsed.port if parsed.port else None
+            elif referer and 'api.' not in referer.lower():
+                # Fallback to Referer header (but not API domain)
+                parsed = urlparse(referer)
+                scheme = parsed.scheme
+                domain_parts = parsed.netloc.split(':')[0].split('.')
+                if len(domain_parts) >= 2 and domain_parts[-2] != 'localhost':
+                    base_domain = '.'.join(domain_parts[-2:])
+                    port = None  # No port for production
+                elif 'localhost' in parsed.netloc:
+                    base_domain = 'localhost'
+                    port = parsed.port if parsed.port else 5173
+                else:
+                    base_domain = parsed.netloc.split(':')[0]
+                    port = parsed.port if parsed.port else None
+            
+            # Construct callback URL with church subdomain
+            if church.subdomain:
+                if 'localhost' in base_domain:
+                    # Local development: http://{subdomain}.localhost:5173
+                    port_str = f":{port}" if port else ":5173"
+                    callback_url = f"{scheme}://{church.subdomain}.{base_domain}{port_str}/subscription/payment/callback"
+                else:
+                    # Production: https://{subdomain}.faithflow360.com
+                    callback_url = f"{scheme}://{church.subdomain}.{base_domain}/subscription/payment/callback"
             else:
-                # Production: https://{subdomain}.faithflow360.com
-                callback_url = f"{scheme}://{church.subdomain}.{base_domain}/subscription/payment/callback"
-        else:
-            # No subdomain, use base URL
-            port_str = f":{port}" if port else ""
-            callback_url = f"{scheme}://{base_domain}{port_str}/subscription/payment/callback"
+                # No subdomain, use base URL
+                if 'localhost' in base_domain:
+                    port_str = f":{port}" if port else ":5173"
+                else:
+                    port_str = ""
+                callback_url = f"{scheme}://{base_domain}{port_str}/subscription/payment/callback"
+            
+            logger.info(f"🔗 Callback URL: {callback_url} (Church subdomain: {church.subdomain}, Origin: {origin}, Base domain: {base_domain})")
+        except Exception as e:
+            logger.error(f"❌ Error constructing callback URL: {str(e)}", exc_info=True)
+            # Fallback to a simple callback URL
+            if church.subdomain:
+                callback_url = f"https://{church.subdomain}.faithflow360.com/subscription/payment/callback"
+            else:
+                frontend_fallback = getattr(settings, 'FRONTEND_URL', 'http://localhost:8080')
+                callback_url = frontend_fallback.rstrip('/') + '/subscription/payment/callback'
+            logger.warning(f"⚠️ Using fallback callback URL: {callback_url}")
         
-        logger.info(f"🔗 Callback URL: {callback_url} (Church subdomain: {church.subdomain}, Origin: {origin}, Base domain: {base_domain})")
+        # Ensure callback_url is set (safety check)
+        if not callback_url:
+            if church.subdomain:
+                callback_url = f"https://{church.subdomain}.faithflow360.com/subscription/payment/callback"
+            else:
+                frontend_fallback = getattr(settings, 'FRONTEND_URL', 'http://localhost:8080')
+                callback_url = frontend_fallback.rstrip('/') + '/subscription/payment/callback'
+            logger.warning(f"⚠️ Callback URL was None, using final fallback: {callback_url}")
         
         payload = {
             'email': email,

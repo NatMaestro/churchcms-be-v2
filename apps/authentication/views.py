@@ -103,11 +103,11 @@ class RegisterView(APIView):
                         # Create domain for production (if not in debug)
                         if not settings.DEBUG:
                             Domain.objects.create(
-                                domain=f"{validated_data['subdomain']}.faithflows.com",
+                                domain=f"{validated_data['subdomain']}.faithflow360.com",
                                 tenant=church,
                                 is_primary=False
                             )
-                            logger.info(f"   ✅ Created domain: {validated_data['subdomain']}.faithflows.com")
+                            logger.info(f"   ✅ Created domain: {validated_data['subdomain']}.faithflow360.com")
                         
                         # Step 3: Switch to tenant schema and create user
                         logger.info("👤 Step 3/4: Creating tenant schema and admin user...")

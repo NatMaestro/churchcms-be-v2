@@ -9,7 +9,7 @@ DEBUG = False
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # Hosts
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '.onrender.com,.faithflows.com,*.faithflows.com').split(',')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '.onrender.com,.faithflow360.com,*.faithflow360.com').split(',')
 
 # Database - Use Neon PostgreSQL (DATABASE_URL from .env)
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -48,7 +48,7 @@ SECURE_HSTS_PRELOAD = True
 # CORS - Update with your frontend domain
 CORS_ALLOWED_ORIGINS = os.getenv(
     'CORS_ALLOWED_ORIGINS',
-    'https://faithflows.com,https://www.faithflows.com'
+    'https://faithflow360.com,https://www.faithflow360.com'
 ).split(',')
 
 # Cache - Use Redis in production (if available)
@@ -61,8 +61,8 @@ if redis_url:
             'OPTIONS': {
                 'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             },
-            'KEY_PREFIX': 'faithflows',
-        }
+            'KEY_PREFIX': 'faithflow360',
+        }   
     }
 
 # Email - Configure based on your email service

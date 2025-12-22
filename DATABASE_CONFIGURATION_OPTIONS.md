@@ -1,6 +1,7 @@
 # Database Configuration Options
 
 ## Current Situation
+
 - Docker Compose is using **local PostgreSQL container**
 - You want to use **Neon PostgreSQL** (cloud)
 - Error: "database does not exist" in Docker logs
@@ -10,20 +11,24 @@
 ## Option 1: Hybrid Approach (Current Implementation) ⚠️
 
 **How it works:**
+
 - If `DATABASE_URL` is set → Use Neon/Cloud PostgreSQL
 - If `DATABASE_URL` is not set → Use local Docker PostgreSQL
 
 **Pros:**
+
 - ✅ Flexible - works in both scenarios
 - ✅ Easy to switch between local and cloud
 - ✅ Good for development (local) and production (cloud)
 
 **Cons:**
+
 - ⚠️ Can be confusing - which DB is actually being used?
 - ⚠️ Local PostgreSQL container still runs even if not needed
 - ⚠️ More complex configuration
 
 **When to use:**
+
 - You want to test locally with Docker PostgreSQL
 - You want to deploy to production with Neon
 - You're unsure which one you'll use
@@ -33,11 +38,13 @@
 ## Option 2: Always Use Neon (Cloud-Only) 🌟 **RECOMMENDED**
 
 **How it works:**
+
 - Remove local PostgreSQL service from docker-compose
 - Always use `DATABASE_URL` from environment
 - Backend connects directly to Neon
 
 **Pros:**
+
 - ✅ Simple and clear - one database source
 - ✅ No local DB overhead
 - ✅ Production-ready from the start
@@ -45,21 +52,24 @@
 - ✅ Free tier Neon is generous
 
 **Cons:**
+
 - ⚠️ Requires internet connection
 - ⚠️ Slightly slower than local (network latency)
 - ⚠️ Uses Neon free tier limits
 
 **When to use:**
+
 - You're committed to using Neon
 - You want simplicity
 - You don't need offline development
 
 **Implementation:**
+
 ```yaml
 # docker-compose.yml - Remove database service, update backend:
 backend:
   environment:
-    DATABASE_URL: ${DATABASE_URL}  # Required!
+    DATABASE_URL: ${DATABASE_URL} # Required!
   # Remove: depends_on: database
 ```
 
@@ -68,31 +78,36 @@ backend:
 ## Option 3: Docker Compose Profiles 🎯
 
 **How it works:**
+
 - Use Docker Compose profiles to switch between local and cloud
 - `docker-compose --profile local up` → Uses local PostgreSQL
 - `docker-compose --profile cloud up` → Uses Neon (no local DB)
 
 **Pros:**
+
 - ✅ Clean separation of concerns
 - ✅ Explicit which mode you're in
 - ✅ Best of both worlds
 
 **Cons:**
+
 - ⚠️ More complex setup
 - ⚠️ Need to remember which profile to use
 
 **When to use:**
+
 - You want both options but clearly separated
 - Team members have different preferences
 
 **Implementation:**
+
 ```yaml
 # docker-compose.yml
 services:
   database:
-    profiles: ["local"]  # Only starts with --profile local
+    profiles: ["local"] # Only starts with --profile local
     # ... PostgreSQL config
-  
+
   backend:
     profiles: ["local", "cloud"]
     environment:
@@ -100,7 +115,7 @@ services:
     depends_on:
       database:
         condition: service_healthy
-        required: false  # Only required for local profile
+        required: false # Only required for local profile
 ```
 
 ---
@@ -108,30 +123,35 @@ services:
 ## Option 4: Environment-Based Configuration 📁
 
 **How it works:**
+
 - Different `.env` files for different environments
 - `.env.local` → Local PostgreSQL
 - `.env.neon` → Neon PostgreSQL
 - `.env.production` → Production Neon
 
 **Pros:**
+
 - ✅ Very clear which environment you're using
 - ✅ Easy to switch (just change .env file)
 - ✅ Good for team collaboration
 
 **Cons:**
+
 - ⚠️ Need to manage multiple .env files
 - ⚠️ Risk of committing secrets
 
 **When to use:**
+
 - You have multiple environments
 - Team needs different configurations
 - You want version-controlled configs (without secrets)
 
 **Implementation:**
+
 ```bash
 # .env.local
 DB_HOST=database
-DB_NAME=faithflows_db
+DB_NAME=_db
 # No DATABASE_URL
 
 # .env.neon
@@ -149,24 +169,29 @@ backend:
 ## Option 5: Separate Docker Compose Files 🔀
 
 **How it works:**
+
 - `docker-compose.local.yml` → With local PostgreSQL
 - `docker-compose.neon.yml` → Without PostgreSQL, uses Neon
 - `docker-compose.yml` → Main file that extends one of them
 
 **Pros:**
+
 - ✅ Very explicit
 - ✅ No confusion about which DB
 - ✅ Easy to understand
 
 **Cons:**
+
 - ⚠️ Code duplication
 - ⚠️ Need to maintain multiple files
 
 **When to use:**
+
 - You want complete separation
 - Different team members use different setups
 
 **Implementation:**
+
 ```bash
 # docker-compose.neon.yml
 services:
@@ -184,21 +209,25 @@ docker-compose -f docker-compose.neon.yml up
 ## Option 6: Smart Auto-Detection 🤖
 
 **How it works:**
+
 - Check if `DATABASE_URL` exists
 - If yes → Use it, skip local DB
 - If no → Start local DB, use it
 - Log which one is being used
 
 **Pros:**
+
 - ✅ Automatic - no configuration needed
 - ✅ Works out of the box
 - ✅ Clear logging
 
 **Cons:**
+
 - ⚠️ Magic behavior (less explicit)
 - ⚠️ Can be surprising
 
 **When to use:**
+
 - You want zero-config experience
 - You're okay with implicit behavior
 
@@ -207,6 +236,7 @@ docker-compose -f docker-compose.neon.yml up
 ## 🎯 My Recommendation: **Option 2 (Always Use Neon)**
 
 **Why?**
+
 1. **Simplicity** - One database, one source of truth
 2. **Production-ready** - Same DB in dev and prod
 3. **Cost-effective** - Neon free tier is generous
@@ -216,11 +246,12 @@ docker-compose -f docker-compose.neon.yml up
 **Quick Implementation:**
 
 1. **Update docker-compose.yml:**
+
 ```yaml
 services:
   backend:
     environment:
-      DATABASE_URL: ${DATABASE_URL}  # Make this required
+      DATABASE_URL: ${DATABASE_URL} # Make this required
     # Remove depends_on: database
     # Remove DB_HOST, DB_NAME, etc. (or keep as fallback)
 
@@ -229,11 +260,13 @@ services:
 ```
 
 2. **Set DATABASE_URL in .env:**
+
 ```bash
 DATABASE_URL=postgresql://user:password@ep-xxx.neon.tech/dbname?sslmode=require
 ```
 
 3. **Update settings_production.py** (simplify):
+
 ```python
 # Always use DATABASE_URL
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -253,14 +286,14 @@ DATABASES['default'] = db_config
 
 ## 🔍 Quick Decision Matrix
 
-| Option | Simplicity | Flexibility | Production Ready | Best For |
-|--------|-----------|-------------|------------------|----------|
-| Option 1 (Hybrid) | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | Testing both |
-| Option 2 (Neon Only) | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ | **Most users** |
-| Option 3 (Profiles) | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Teams |
-| Option 4 (Env-based) | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Multiple envs |
-| Option 5 (Separate files) | ⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | Clear separation |
-| Option 6 (Auto-detect) | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | Zero-config |
+| Option                    | Simplicity | Flexibility | Production Ready | Best For         |
+| ------------------------- | ---------- | ----------- | ---------------- | ---------------- |
+| Option 1 (Hybrid)         | ⭐⭐       | ⭐⭐⭐⭐⭐  | ⭐⭐⭐           | Testing both     |
+| Option 2 (Neon Only)      | ⭐⭐⭐⭐⭐ | ⭐⭐        | ⭐⭐⭐⭐⭐       | **Most users**   |
+| Option 3 (Profiles)       | ⭐⭐⭐     | ⭐⭐⭐⭐    | ⭐⭐⭐⭐         | Teams            |
+| Option 4 (Env-based)      | ⭐⭐⭐     | ⭐⭐⭐⭐    | ⭐⭐⭐⭐         | Multiple envs    |
+| Option 5 (Separate files) | ⭐⭐       | ⭐⭐⭐      | ⭐⭐⭐           | Clear separation |
+| Option 6 (Auto-detect)    | ⭐⭐⭐⭐   | ⭐⭐⭐      | ⭐⭐⭐           | Zero-config      |
 
 ---
 
@@ -272,7 +305,3 @@ DATABASES['default'] = db_config
 4. **Run migrations** to create the database schema
 
 **Which option do you prefer?** Or do you have questions about any of them?
-
-
-
-

@@ -24,6 +24,23 @@ class SecurityHeadersMiddleware:
             response['X-XSS-Protection'] = '1; mode=block'
             response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
             response['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+            
+            # Content Security Policy (CSP)
+            # Adjust based on your frontend domain and requirements
+            csp = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.paystack.co; "  # Paystack requires unsafe-inline
+                "style-src 'self' 'unsafe-inline'; "  # React/Tailwind requires unsafe-inline
+                "img-src 'self' data: https:; "
+                "font-src 'self' data:; "
+                "connect-src 'self' https://api.paystack.co https://api.faithflow360.com; "  # API endpoints
+                "frame-src https://js.paystack.co; "  # Paystack iframe
+                "object-src 'none'; "
+                "base-uri 'self'; "
+                "form-action 'self'; "
+                "frame-ancestors 'none';"
+            )
+            response['Content-Security-Policy'] = csp
         
         return response
 

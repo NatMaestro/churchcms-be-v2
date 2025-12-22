@@ -262,10 +262,12 @@ CORS_ALLOWED_ORIGINS = os.getenv(
     'http://localhost:8080,http://localhost:5173,http://localhost:3000'
 ).split(',')
 
-# Allow all subdomains for local development
+# Allow all subdomains for local development and production
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://\w+\.localhost:\d+$",  # Match subdomain.localhost:port
     r"^http://localhost:\d+$",        # Match localhost:port
+    r"^https://\w+\.faithflow360\.com$",  # Match subdomain.faithflow360.com (production)
+    r"^https://www\.faithflow360\.com$",  # Match www.faithflow360.com (production)
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -276,10 +278,10 @@ CORS_ALLOW_HEADERS = [
     'content-type',
     'dnt',
     'origin',
+    'x-tenant-subdomain',  # Custom header for multi-tenancy
     'user-agent',
     'x-csrftoken',
-    'x-requested-with',
-    'x-tenant-subdomain',  # Custom header for tenant identification
+    'x-requested-with', 
 ]
 
 # API Documentation (Spectacular)

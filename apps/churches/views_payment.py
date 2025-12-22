@@ -182,9 +182,9 @@ def initialize_subscription_payment(request):
                     base_domain = '.'.join(domain_parts[-2:])
                     port = None  # No port for production
                 elif 'localhost' in parsed.netloc:
-                    # Localhost: subdomain.localhost:5173 -> localhost
+                    # Localhost: subdomain.localhost:8080 -> localhost
                     base_domain = 'localhost'
-                    port = parsed.port if parsed.port else 5173
+                    port = parsed.port if parsed.port else 8080
                 else:
                     base_domain = parsed.netloc.split(':')[0]
                     port = parsed.port if parsed.port else None
@@ -192,22 +192,32 @@ def initialize_subscription_payment(request):
                 # Fallback to Referer header (but not API domain)
                 parsed = urlparse(referer)
                 scheme = parsed.scheme
-                domain_parts = parsed.netloc.split(':')[0].split('.')
-                if len(domain_parts) >= 2 and domain_parts[-2] != 'localhost':
+                netloc_no_port = parsed.netloc.split(':')[0]  # Remove port
+                domain_parts = netloc_no_port.split('.')
+                
+                if 'localhost' in netloc_no_port:
+                    # Localhost: subdomain.localhost -> extract just 'localhost'
+                    if len(domain_parts) >= 2 and domain_parts[-1] == 'localhost':
+                        base_domain = 'localhost'
+                    else:
+                        base_domain = 'localhost'
+                    port = parsed.port if parsed.port else 8080
+                elif len(domain_parts) >= 2:
+                    # Production: subdomain.domain.com -> domain.com
                     base_domain = '.'.join(domain_parts[-2:])
                     port = None  # No port for production
-                elif 'localhost' in parsed.netloc:
-                    base_domain = 'localhost'
-                    port = parsed.port if parsed.port else 5173
                 else:
-                    base_domain = parsed.netloc.split(':')[0]
+                    base_domain = netloc_no_port
                     port = parsed.port if parsed.port else None
             
             # Construct callback URL with church subdomain
+            # Use FRONTEND_URL port as default (8080 for localhost)
+            default_port = 8080 if 'localhost' in base_domain else None
+            
             if church.subdomain:
                 if 'localhost' in base_domain:
-                    # Local development: http://{subdomain}.localhost:5173
-                    port_str = f":{port}" if port else ":5173"
+                    # Local development: http://{subdomain}.localhost:8080
+                    port_str = f":{port}" if port else f":{default_port}"
                     callback_url = f"{scheme}://{church.subdomain}.{base_domain}{port_str}/subscription/payment/callback"
                 else:
                     # Production: https://{subdomain}.faithflow360.com
@@ -215,7 +225,7 @@ def initialize_subscription_payment(request):
             else:
                 # No subdomain, use base URL
                 if 'localhost' in base_domain:
-                    port_str = f":{port}" if port else ":5173"
+                    port_str = f":{port}" if port else f":{default_port}"
                 else:
                     port_str = ""
                 callback_url = f"{scheme}://{base_domain}{port_str}/subscription/payment/callback"

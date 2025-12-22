@@ -53,6 +53,17 @@ class Church(TenantMixin):
         default='active'
     )
     
+    # Subscription/Trial Management
+    trial_started_at = models.DateTimeField(null=True, blank=True)
+    trial_end_date = models.DateTimeField(null=True, blank=True)
+    subscription_start_date = models.DateTimeField(null=True, blank=True)
+    subscription_end_date = models.DateTimeField(null=True, blank=True)
+    grace_period_days = models.IntegerField(default=7, help_text="Days after expiration before blocking access")
+    bypass_subscription_check = models.BooleanField(
+        default=False,
+        help_text="If True, this church bypasses all subscription/trial expiration checks. Use for testing or special cases."
+    )
+    
     # Branding Settings (JSON field)
     branding_settings = models.JSONField(default=dict, blank=True)
     
@@ -95,6 +106,9 @@ class Church(TenantMixin):
     def __str__(self):
         return self.name
     
+    # Import subscription payment model
+    # This allows accessing SubscriptionPayment via Church.subscription_payments
+    
     def get_default_features(self):
         """Get default features based on denomination."""
         defaults = {
@@ -131,6 +145,59 @@ class Church(TenantMixin):
             defaults.update(self.features)
         
         return defaults
+    
+    def get_subscription_status(self):
+        """
+        Determine the current subscription status.
+        Returns: 'active', 'trial_expired', 'subscription_expired', 'suspended', 'cancelled'
+        """
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        now = timezone.now()
+        
+        # Check if cancelled or suspended
+        if self.subscription_status in ['cancelled', 'suspended']:
+            return self.subscription_status
+        
+        # Check if trial expired
+        if self.plan == 'trial' and self.trial_end_date:
+            grace_period_end = self.trial_end_date + timedelta(days=self.grace_period_days)
+            if now > grace_period_end:
+                return 'trial_expired'
+            if now > self.trial_end_date:
+                return 'trial_expiring'  # In grace period
+        
+        # Check if subscription expired
+        if self.subscription_end_date:
+            grace_period_end = self.subscription_end_date + timedelta(days=self.grace_period_days)
+            if now > grace_period_end:
+                return 'subscription_expired'
+            if now > self.subscription_end_date:
+                return 'subscription_expiring'  # In grace period
+        
+        return 'active'
+    
+    def can_access_system(self):
+        """Check if church can access the system based on subscription status."""
+        status = self.get_subscription_status()
+        return status == 'active' or status in ['trial_expiring', 'subscription_expiring']
+    
+    def get_days_until_expiration(self):
+        """Get number of days until trial or subscription expires."""
+        from django.utils import timezone
+        
+        now = timezone.now()
+        
+        if self.plan == 'trial' and self.trial_end_date:
+            days = (self.trial_end_date - now).days
+            return max(0, days)
+        
+        if self.subscription_end_date:
+            days = (self.subscription_end_date - now).days
+            return max(0, days)
+        
+        return None
 
 
 class Domain(DomainMixin):

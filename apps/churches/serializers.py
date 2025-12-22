@@ -24,7 +24,11 @@ class ChurchSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'schema_name', 'name', 'denomination', 'address', 
             'phone', 'email', 'website', 'subdomain', 'is_active', 
-            'plan', 'subscription_status', 'branding_settings', 
+            'plan', 'subscription_status', 
+            'trial_started_at', 'trial_end_date',
+            'subscription_start_date', 'subscription_end_date',
+            'grace_period_days', 'bypass_subscription_check',
+            'branding_settings', 
             'features', 'payment_settings', 'member_settings',
             'communication_settings', 'privacy_settings',
             'automation_settings', 'integration_settings',

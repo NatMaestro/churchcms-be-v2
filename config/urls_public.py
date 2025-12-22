@@ -12,6 +12,7 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 from apps.churches.views_setup import InitialSetupView
+from apps.churches.views_payment import paystack_webhook
 
 def api_root(request):
     """Root API endpoint - returns available endpoints."""
@@ -53,5 +54,9 @@ urlpatterns = [
     
     # Super admin endpoints
     path('api/v1/superadmin/', include('apps.superadmin.urls')),
+    
+    # Paystack webhook (public endpoint - no tenant/subdomain needed)
+    # Paystack sends webhooks to main domain, not subdomain
+    path('api/v1/churches/subscription-payment/webhook/', paystack_webhook, name='paystack-webhook-public'),
 ]
 

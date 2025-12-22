@@ -16,6 +16,13 @@ class ChurchBasicSerializer(serializers.Serializer):
     subdomain = serializers.CharField(read_only=True)
     email = serializers.EmailField(read_only=True)
     plan = serializers.CharField(read_only=True)
+    subscription_status = serializers.CharField(read_only=True)
+    trial_started_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    trial_end_date = serializers.DateTimeField(read_only=True, allow_null=True)
+    subscription_start_date = serializers.DateTimeField(read_only=True, allow_null=True)
+    subscription_end_date = serializers.DateTimeField(read_only=True, allow_null=True)
+    grace_period_days = serializers.IntegerField(read_only=True, allow_null=True)
+    bypass_subscription_check = serializers.BooleanField(read_only=True, allow_null=True)
 
 
 class UserSerializer(serializers.ModelSerializer):

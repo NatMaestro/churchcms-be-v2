@@ -80,6 +80,7 @@ INSTALLED_APPS = list(SHARED_APPS) + [app for app in TENANT_APPS if app not in S
 MIDDLEWARE = [
     # TenantHeaderMiddleware reads X-Tenant-Subdomain header and sets tenant
     # TenantMainMiddleware is kept as fallback for subdomain-based routing (optional)
+    # 'django_tenants.middleware.main.TenantMainMiddleware',  # Must be first
     'core.middleware_dev.TenantHeaderMiddleware',  # Header-based tenant selection (primary) # Fallback: subdomain routing (optional)
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -91,6 +92,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'core.middleware.SecurityHeadersMiddleware',
     'core.middleware.TenantIsolationMiddleware',
+    'core.middleware.subscription.SubscriptionMiddleware',  # Check subscription/trial status
 ]
 
 ROOT_URLCONF = 'config.urls_tenants'  # Use tenant-aware URLs

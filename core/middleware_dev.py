@@ -33,13 +33,14 @@ class TenantHeaderMiddleware:
         # Get tenant subdomain from header
         tenant_subdomain = request.headers.get('X-Tenant-Subdomain', '').strip()
         print(f"Tenant subdomain: {tenant_subdomain}")
-        # Public routes that don't require tenant (registration, login, health checks)
+        # Public routes that don't require tenant (registration, login, health checks, webhooks)
         public_paths = [
             '/api/v1/auth/register/',
             '/api/v1/auth/login/',
             '/api/v1/auth/refresh/',
             '/api/v1/auth/forgot-password/',
             '/api/v1/auth/reset-password/',
+            '/api/v1/churches/subscription-payment/webhook/',  # Paystack webhook (no tenant needed)
             '/health/',
             '/api/docs/',
             '/api/schema/',

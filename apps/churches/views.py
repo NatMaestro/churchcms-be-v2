@@ -213,3 +213,151 @@ class ChurchViewSet(viewsets.ModelViewSet):
             'message': 'Denomination defaults applied successfully',
             'features': church.features
         })
+    
+    @action(detail=True, methods=['post'])
+    def start_trial(self, request, pk=None):
+        """
+        Start a 30-day trial for the church.
+        
+        POST /api/v1/churches/:id/start-trial/
+        """
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        church = self.get_object()
+        
+        # Check permissions
+        if not (request.user.is_superadmin or 
+                (request.user.church and request.user.church.id == church.id and request.user.is_church_admin)):
+            return Response({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Set trial dates
+        now = timezone.now()
+        trial_end = now + timedelta(days=30)
+        
+        church.plan = 'trial'
+        church.subscription_status = 'active'
+        church.trial_started_at = now
+        church.trial_end_date = trial_end
+        church.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Trial started successfully',
+            'trial_started_at': church.trial_started_at,
+            'trial_end_date': church.trial_end_date,
+            'days_remaining': 30
+        })
+    
+    @action(detail=True, methods=['post'], url_path='upgrade-subscription', url_name='upgrade-subscription')
+    def upgrade_subscription(self, request, pk=None):
+        """
+        Upgrade church subscription to a paid plan.
+        
+        POST /api/v1/churches/:id/upgrade-subscription/
+        Body: {
+            "plan": "basic|standard|premium|enterprise",
+            "duration": "monthly|yearly"
+        }
+        """
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        church = self.get_object()
+        
+        # Check permissions
+        if not (request.user.is_superadmin or 
+                (request.user.church and request.user.church.id == church.id and request.user.is_church_admin)):
+            return Response({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        plan = request.data.get('plan')
+        duration = request.data.get('duration', 'monthly')
+        
+        if plan not in ['basic', 'standard', 'premium', 'enterprise']:
+            return Response({
+                'success': False,
+                'error': 'Invalid plan. Must be: basic, standard, premium, or enterprise'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Calculate subscription dates
+        now = timezone.now()
+        if duration == 'yearly':
+            subscription_end = now + timedelta(days=365)
+        else:
+            subscription_end = now + timedelta(days=30)
+        
+        # Log before update
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"🔄 Upgrading subscription for church {church.id} ({church.subdomain})")
+        logger.info(f"   Plan: {plan}, Duration: {duration}")
+        logger.info(f"   Setting dates - Start: {now}, End: {subscription_end}")
+        logger.info(f"   Before update - Plan: {church.plan}, Start: {church.subscription_start_date}, End: {church.subscription_end_date}")
+        
+        # Update church subscription fields
+        church.plan = plan
+        church.subscription_status = 'active'
+        church.subscription_start_date = now
+        church.subscription_end_date = subscription_end
+        # Clear trial if upgrading from trial
+        church.trial_end_date = None
+        
+        # Save the church - django-tenants should handle schema switching automatically
+        # since Church is a TenantMixin model in the public schema
+        church.save(update_fields=['plan', 'subscription_status', 'subscription_start_date', 'subscription_end_date', 'trial_end_date'])
+        
+        # Refresh to ensure we have the latest data
+        church.refresh_from_db()
+        
+        logger.info(f"   ✅ After save - Plan: {church.plan}, Start: {church.subscription_start_date}, End: {church.subscription_end_date}")
+        
+        return Response({
+            'success': True,
+            'message': f'Subscription upgraded to {plan} plan',
+            'plan': church.plan,
+            'subscription_start_date': church.subscription_start_date,
+            'subscription_end_date': church.subscription_end_date,
+            'duration': duration
+        })
+    
+    @action(detail=True, methods=['get'])
+    def subscription_status(self, request, pk=None):
+        """
+        Get current subscription status and details.
+        
+        GET /api/v1/churches/:id/subscription-status/
+        """
+        church = self.get_object()
+        
+        # Check permissions
+        if not (request.user.is_superadmin or 
+                (request.user.church and request.user.church.id == church.id)):
+            return Response({
+                'success': False,
+                'error': 'Permission denied'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        status_info = church.get_subscription_status()
+        days_remaining = church.get_days_until_expiration()
+        can_access = church.can_access_system()
+        
+        return Response({
+            'success': True,
+            'plan': church.plan,
+            'subscription_status': church.subscription_status,
+            'status': status_info,
+            'can_access': can_access,
+            'days_remaining': days_remaining,
+            'trial_started_at': church.trial_started_at,
+            'trial_end_date': church.trial_end_date,
+            'subscription_start_date': church.subscription_start_date,
+            'subscription_end_date': church.subscription_end_date,
+            'grace_period_days': church.grace_period_days,
+            'bypass_subscription_check': church.bypass_subscription_check,
+        })

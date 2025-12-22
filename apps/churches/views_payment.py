@@ -172,21 +172,24 @@ def initialize_subscription_payment(request):
             # Determine the base domain and scheme from headers if available
             # Filter out API domains - we only want frontend domains
             if origin and 'api.' not in origin.lower():
-                # Extract from Origin header (e.g., https://apostolic.faithflow360.com)
+                # Extract from Origin header (e.g., https://apostolic.faithflow360.com or http://calvary.localhost:8080)
                 parsed = urlparse(origin)
                 scheme = parsed.scheme
-                # Extract base domain: apostolic.faithflow360.com -> faithflow360.com
-                domain_parts = parsed.netloc.split(':')[0].split('.')  # Remove port
-                if len(domain_parts) >= 2 and domain_parts[-2] != 'localhost':
-                    # Production: subdomain.domain.com -> domain.com
-                    base_domain = '.'.join(domain_parts[-2:])
-                    port = None  # No port for production
-                elif 'localhost' in parsed.netloc:
-                    # Localhost: subdomain.localhost:8080 -> localhost
+                netloc_no_port = parsed.netloc.split(':')[0]  # Remove port
+                domain_parts = netloc_no_port.split('.')
+                
+                if 'localhost' in netloc_no_port:
+                    # Localhost: subdomain.localhost -> extract just 'localhost'
+                    # Always use 'localhost' as base domain, ignore any subdomain prefix
                     base_domain = 'localhost'
                     port = parsed.port if parsed.port else 8080
+                elif len(domain_parts) >= 2:
+                    # Production: subdomain.domain.com -> domain.com
+                    # Extract last two parts (e.g., faithflow360.com from apostolic.faithflow360.com)
+                    base_domain = '.'.join(domain_parts[-2:])
+                    port = None  # No port for production
                 else:
-                    base_domain = parsed.netloc.split(':')[0]
+                    base_domain = netloc_no_port
                     port = parsed.port if parsed.port else None
             elif referer and 'api.' not in referer.lower():
                 # Fallback to Referer header (but not API domain)
@@ -197,13 +200,12 @@ def initialize_subscription_payment(request):
                 
                 if 'localhost' in netloc_no_port:
                     # Localhost: subdomain.localhost -> extract just 'localhost'
-                    if len(domain_parts) >= 2 and domain_parts[-1] == 'localhost':
-                        base_domain = 'localhost'
-                    else:
-                        base_domain = 'localhost'
+                    # Always use 'localhost' as base domain, ignore any subdomain prefix
+                    base_domain = 'localhost'
                     port = parsed.port if parsed.port else 8080
                 elif len(domain_parts) >= 2:
                     # Production: subdomain.domain.com -> domain.com
+                    # Extract last two parts (e.g., faithflow360.com from apostolic.faithflow360.com)
                     base_domain = '.'.join(domain_parts[-2:])
                     port = None  # No port for production
                 else:
@@ -230,7 +232,7 @@ def initialize_subscription_payment(request):
                     port_str = ""
                 callback_url = f"{scheme}://{base_domain}{port_str}/subscription/payment/callback"
             
-            logger.info(f"🔗 Callback URL: {callback_url} (Church subdomain: {church.subdomain}, Origin: {origin}, Base domain: {base_domain})")
+            logger.info(f"🔗 Callback URL: {callback_url} (Church subdomain: {church.subdomain}, Origin: {origin}, Referer: {referer}, Base domain: {base_domain}, Port: {port}, Scheme: {scheme})")
         except Exception as e:
             logger.error(f"❌ Error constructing callback URL: {str(e)}", exc_info=True)
             # Fallback to a simple callback URL

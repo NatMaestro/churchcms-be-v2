@@ -121,3 +121,4 @@ class SubscriptionPayment(models.Model):
         self.subscription_end_date = subscription_end
         self.save(update_fields=['subscription_activated', 'subscription_start_date', 'subscription_end_date', 'updated_at'])
 
+

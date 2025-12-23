@@ -72,3 +72,4 @@ class Command(BaseCommand):
             if Church.objects.count() > 10:
                 self.stdout.write(f'  ... and {Church.objects.count() - 10} more')
 
+

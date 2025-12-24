@@ -11,6 +11,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from django.db import connection, transaction
 from django.conf import settings
+from django.middleware.csrf import get_token
 from .serializers import (
     UserSerializer,
     RegisterSerializer,
@@ -29,9 +30,112 @@ import secrets
 User = get_user_model()
 
 
+def set_auth_cookies(response, access_token: str, refresh_token: str, request):
+    """
+    Attach HttpOnly cookies for access and refresh tokens.
+    """
+    secure_flag = not settings.DEBUG
+    cookie_domain = settings.COOKIE_DOMAIN or None
+    # Access token cookie
+    response.set_cookie(
+        settings.ACCESS_TOKEN_COOKIE_NAME,
+        access_token,
+        httponly=True,
+        secure=secure_flag,
+        samesite=settings.SESSION_COOKIE_SAMESITE,
+        domain=cookie_domain,
+        path='/',
+        max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
+    )
+    # Refresh token cookie
+    response.set_cookie(
+        settings.REFRESH_TOKEN_COOKIE_NAME,
+        refresh_token,
+        httponly=True,
+        secure=secure_flag,
+        samesite=settings.SESSION_COOKIE_SAMESITE,
+        domain=cookie_domain,
+        path='/',
+        max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
+    )
+    # Ensure a CSRF token is issued alongside auth cookies
+    csrf_token = get_token(request)
+    response.set_cookie(
+        settings.CSRF_COOKIE_NAME,
+        csrf_token,
+        secure=secure_flag,
+        samesite=settings.CSRF_COOKIE_SAMESITE,
+        domain=cookie_domain,
+        path='/',
+    )
+
+
+def clear_auth_cookies(response):
+    """
+    Remove auth cookies from the browser.
+    """
+    cookie_domain = settings.COOKIE_DOMAIN or None
+    for name in [settings.ACCESS_TOKEN_COOKIE_NAME, settings.REFRESH_TOKEN_COOKIE_NAME]:
+        response.set_cookie(
+            name,
+            '',
+            max_age=0,
+            secure=not settings.DEBUG,
+            httponly=True,
+            samesite=settings.SESSION_COOKIE_SAMESITE,
+            domain=cookie_domain,
+            path='/',
+        )
+    # Clear CSRF cookie
+    response.set_cookie(
+        settings.CSRF_COOKIE_NAME,
+        '',
+        max_age=0,
+        secure=not settings.DEBUG,
+        samesite=settings.CSRF_COOKIE_SAMESITE,
+        domain=cookie_domain,
+        path='/',
+    )
+
+
 class CustomTokenObtainPairView(TokenObtainPairView):
     """Custom login view with user data."""
     serializer_class = CustomTokenObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        """
+        Issue JWTs and also set HttpOnly cookies for browser clients.
+        """
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == status.HTTP_200_OK and response.data.get('access') and response.data.get('refresh'):
+            set_auth_cookies(response, response.data['access'], response.data['refresh'], request)
+        return response
+
+
+class CustomTokenRefreshView(TokenRefreshView):
+    """
+    Refresh access token using the refresh token from cookie (preferred) or request data.
+    """
+
+    def post(self, request, *args, **kwargs):
+        data = request.data.copy()
+        # If refresh token not supplied in body, pull from cookie
+        if 'refresh' not in data:
+            refresh_from_cookie = request.COOKIES.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+            if refresh_from_cookie:
+                data['refresh'] = refresh_from_cookie
+
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        response = Response(serializer.validated_data, status=status.HTTP_200_OK)
+
+        if response.status_code == status.HTTP_200_OK and response.data.get('access'):
+            # When rotation is enabled, refresh may also be returned
+            access_token = response.data['access']
+            refresh_token = response.data.get('refresh') or request.data.get('refresh')
+            if refresh_token:
+                set_auth_cookies(response, access_token, refresh_token, request)
+        return response
 
 
 class RegisterView(APIView):
@@ -137,7 +241,7 @@ class RegisterView(APIView):
                             # Switch back to public schema for response
                             connection.set_schema_to_public()
                             
-                            return Response({
+                            response = Response({
                                 'success': True,
                                 'message': 'Church and admin user created successfully',
                                 'user': UserSerializer(admin_user).data,
@@ -150,6 +254,10 @@ class RegisterView(APIView):
                                 'access': str(refresh.access_token),
                                 'refresh': str(refresh),
                             }, status=status.HTTP_201_CREATED)
+                            
+                            # Attach auth cookies to response
+                            set_auth_cookies(response, str(refresh.access_token), str(refresh), request)
+                            return response
                             
                         except Exception as user_error:
                             # If user creation fails, rollback the church creation
@@ -187,7 +295,7 @@ class RegisterView(APIView):
             user = serializer.save()
             refresh = RefreshToken.for_user(user)
             
-            return Response({
+            response = Response({
                 'success': True,
                 'message': 'User registered successfully',
                 'user': UserSerializer(user).data,
@@ -196,6 +304,9 @@ class RegisterView(APIView):
                     'access': str(refresh.access_token),
                 }
             }, status=status.HTTP_201_CREATED)
+
+            set_auth_cookies(response, str(refresh.access_token), str(refresh), request)
+            return response
         
         return Response({
             'success': False,
@@ -209,14 +320,16 @@ class LogoutView(APIView):
     
     def post(self, request):
         try:
-            refresh_token = request.data.get('refresh')
+            refresh_token = request.data.get('refresh') or request.COOKIES.get(settings.REFRESH_TOKEN_COOKIE_NAME)
             token = RefreshToken(refresh_token)
             token.blacklist()
-            
-            return Response({
+
+            response = Response({
                 'success': True,
                 'message': 'Logged out successfully'
             }, status=status.HTTP_200_OK)
+            clear_auth_cookies(response)
+            return response
         except Exception:
             return Response({
                 'success': False,

@@ -4,9 +4,9 @@ Authentication URLs (tenant-specific).
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     CustomTokenObtainPairView,
+    CustomTokenRefreshView,
     RegisterView,
     LogoutView,
     MeView,
@@ -22,7 +22,7 @@ router.register(r'users', UserViewSet, basename='user')
 urlpatterns = [
     # JWT Token endpoints
     path('login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
     path('logout/', LogoutView.as_view(), name='logout'),
     
     # User management

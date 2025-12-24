@@ -47,6 +47,7 @@ SHARED_APPS = [
     'corsheaders',
     'drf_spectacular',
     'django_filters',
+    'sslserver',
     
     # Shared apps (multi-tenant)
     'apps.churches',
@@ -86,7 +87,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    'core.middleware.csrf.DynamicCSRFMiddleware',  # Custom CSRF with dynamic subdomain support
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -207,7 +208,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # REST Framework Settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'core.authentication.CookieJWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -256,6 +257,19 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
 }
 
+# Cookie / CSRF settings for browser-based auth
+ACCESS_TOKEN_COOKIE_NAME = os.getenv('ACCESS_TOKEN_COOKIE_NAME', 'ff_access')
+REFRESH_TOKEN_COOKIE_NAME = os.getenv('REFRESH_TOKEN_COOKIE_NAME', 'ff_refresh')
+COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', None)  # e.g., ".faithflow360.com" in production
+SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'Lax')
+CSRF_COOKIE_SAMESITE = os.getenv('CSRF_COOKIE_SAMESITE', 'Lax')
+# CSRF_TRUSTED_ORIGINS - Base domains only (subdomains handled dynamically by DynamicCSRFMiddleware)
+# The middleware automatically allows all *.faithflow360.com subdomains
+CSRF_TRUSTED_ORIGINS = os.getenv(
+    'CSRF_TRUSTED_ORIGINS',
+    'https://faithflow360.com,https://www.faithflow360.com'
+).split(',')
+
 # CORS Settings
 CORS_ALLOWED_ORIGINS = os.getenv(
     'CORS_ALLOWED_ORIGINS',
@@ -264,8 +278,10 @@ CORS_ALLOWED_ORIGINS = os.getenv(
 
 # Allow all subdomains for local development and production
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^http://\w+\.localhost:\d+$",  # Match subdomain.localhost:port
-    r"^http://localhost:\d+$",        # Match localhost:port
+    r"^https://\w+\.localhost:\d+$",  # Match HTTPS subdomain.localhost:port
+    r"^http://\w+\.localhost:\d+$",   # Match HTTP subdomain.localhost:port
+    r"^https://localhost:\d+$",       # Match HTTPS localhost:port
+    r"^http://localhost:\d+$",       # Match HTTP localhost:port
     r"^https://\w+\.faithflow360\.com$",  # Match subdomain.faithflow360.com (production)
     r"^https://www\.faithflow360\.com$",  # Match www.faithflow360.com (production)
 ]

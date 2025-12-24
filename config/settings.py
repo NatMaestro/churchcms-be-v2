@@ -47,7 +47,8 @@ SHARED_APPS = [
     'corsheaders',
     'drf_spectacular',
     'django_filters',
-    # 'sslserver',  # Only for local HTTPS dev (not needed in production, incompatible with Python 3.13)
+    # Note: sslserver removed - not needed in production, incompatible with Python 3.13
+    # For local HTTPS dev, use a reverse proxy or plain localhost (no HTTPS needed)
     
     # Shared apps (multi-tenant)
     'apps.churches',

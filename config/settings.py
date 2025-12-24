@@ -47,7 +47,7 @@ SHARED_APPS = [
     'corsheaders',
     'drf_spectacular',
     'django_filters',
-    'sslserver',
+    # 'sslserver',  # Only for local HTTPS dev (not needed in production, incompatible with Python 3.13)
     
     # Shared apps (multi-tenant)
     'apps.churches',

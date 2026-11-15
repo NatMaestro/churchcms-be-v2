@@ -3,6 +3,7 @@ The tenant is chosen by the client-supplied X-Tenant-Subdomain header, so a user
 of church A used to be able to read church B's data just by sending B's
 subdomain. These tests go through the real middleware stack and real JWTs.
 """
+from django.conf import settings
 from django.db import connection
 from django.test import TransactionTestCase
 from rest_framework.test import APIClient
@@ -17,6 +18,11 @@ TEST_SCHEMAS = ('bindinga', 'bindingb')
 
 
 class TenantBindingTests(TransactionTestCase):
+    # Setting available_apps makes Django flush with TRUNCATE ... CASCADE, so
+    # tenant schemas left behind by other test modules (whose tables hold
+    # foreign keys to public.churches) cannot block the flush after each test.
+    available_apps = list(settings.INSTALLED_APPS)
+
     def setUp(self):
         connection.set_schema_to_public()
         self.church_a = self._make_church(TEST_SCHEMAS[0])

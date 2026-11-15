@@ -10,3 +10,4 @@ tests.test_locked_down_endpoints
 tests.test_logout_revocation
 tests.test_member_request_submit
 tests.test_member_invites
+tests.test_church_lookup

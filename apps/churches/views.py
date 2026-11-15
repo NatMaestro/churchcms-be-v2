@@ -7,7 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from .models import Church, Domain
-from .serializers import ChurchSerializer, ChurchDetailSerializer, DomainSerializer
+from .serializers import ChurchSerializer, ChurchDetailSerializer, DomainSerializer, PublicChurchSerializer
 from core.permissions import IsSuperAdmin, IsChurchAdmin
 
 
@@ -40,7 +40,9 @@ class ChurchViewSet(viewsets.ModelViewSet):
         Get church by subdomain.
         Public endpoint for subdomain resolution.
         
-        GET /api/v1/churches/by-subdomain/?subdomain=olamchurch
+        GET /api/v1/churches/by_subdomain/?subdomain=olamchurch
+
+        Unauthenticated, so it returns only the public profile.
         """
         subdomain = request.query_params.get('subdomain')
         
@@ -52,7 +54,7 @@ class ChurchViewSet(viewsets.ModelViewSet):
         
         try:
             church = Church.objects.get(subdomain=subdomain, is_active=True)
-            serializer = ChurchDetailSerializer(church)
+            serializer = PublicChurchSerializer(church)
             
             return Response({
                 'success': True,

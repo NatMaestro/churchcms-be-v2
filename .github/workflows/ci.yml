@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend checks and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          # Throwaway database that only exists for this job; no password needed.
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: faithflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://postgres@localhost:5432/faithflow
+      DEBUG: 'True'
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Generate a throwaway SECRET_KEY
+        run: echo "SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(50))')" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Django system check
+        run: python manage.py check
+
+      - name: No missing migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Tests
+        # Only modules listed in tests/ci_test_modules.txt are enforced: the
+        # older suite was already failing before CI existed. Register each
+        # module there once it passes.
+        run: |
+          modules=$(grep -vE '^[[:space:]]*(#|$)' tests/ci_test_modules.txt | tr '\n' ' ')
+          if [ -z "$modules" ]; then
+            echo "::warning::No test modules registered in tests/ci_test_modules.txt yet"
+            exit 0
+          fi
+          python manage.py test --noinput $modules

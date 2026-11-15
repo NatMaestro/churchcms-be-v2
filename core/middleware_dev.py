@@ -32,7 +32,6 @@ class TenantHeaderMiddleware:
     def __call__(self, request):
         # Get tenant subdomain from header
         tenant_subdomain = request.headers.get('X-Tenant-Subdomain', '').strip()
-        print(f"Tenant subdomain: {tenant_subdomain}")
         # Public routes that don't require tenant (registration, login, health checks, webhooks)
         public_paths = [
             '/api/v1/auth/register/',

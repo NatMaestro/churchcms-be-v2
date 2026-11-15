@@ -17,7 +17,8 @@ class AnnouncementSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'content', 'type', 'priority', 'target_audience',
             'is_active', 'is_urgent', 'scheduled_at', 'expires_at', 'is_expired',
-            'created_by', 'created_by_name', 'created_at', 'updated_at'
+            'created_by', 'created_by_name', 'created_at', 'updated_at',
+            'show_on_website',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
 
@@ -29,7 +30,7 @@ class AnnouncementListSerializer(serializers.ModelSerializer):
         model = Announcement
         fields = [
             'id', 'title', 'type', 'priority', 'target_audience',
-            'is_active', 'is_urgent', 'created_at'
+            'is_active', 'is_urgent', 'created_at', 'show_on_website',
         ]
 
 

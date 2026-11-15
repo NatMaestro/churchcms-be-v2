@@ -59,6 +59,9 @@ class Announcement(models.Model):
     is_active = models.BooleanField(default=True)
     is_urgent = models.BooleanField(default=False)
     
+    # Public church website: shown there only when the admin opts in.
+    show_on_website = models.BooleanField(default=False)
+    
     # Scheduling
     scheduled_at = models.DateTimeField(null=True, blank=True)
     expires_at = models.DateTimeField(null=True, blank=True)

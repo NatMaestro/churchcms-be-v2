@@ -240,6 +240,7 @@ REST_FRAMEWORK = {
         'anon': '100/hour',
         'user': '1000/hour',
         'member_request_submit': '10/hour',
+        'church_website_content': '300/hour',
     }
 }
 

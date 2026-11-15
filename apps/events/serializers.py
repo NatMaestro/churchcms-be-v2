@@ -31,6 +31,7 @@ class EventSerializer(serializers.ModelSerializer):
             'capacity', 'requires_registration', 'registration_deadline', 'max_attendees',
             'registration_form', 'is_recurring', 'recurrence_pattern', 'recurrence_end_date',
             'attendees', 'attendee_count', 'is_full', 'created_by', 'created_by_name',
+            'show_on_website',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
@@ -48,8 +49,9 @@ class EventListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
         fields = [
-            'id', 'title', 'date', 'end_date', 'location', 'type',
-            'capacity', 'attendee_count', 'is_recurring', 'recurrence_pattern'
+            'id', 'title', 'description', 'date', 'end_date', 'location', 'type',
+            'capacity', 'attendee_count', 'is_recurring', 'recurrence_pattern',
+            'show_on_website',
         ]
     
     def get_attendee_count(self, obj):

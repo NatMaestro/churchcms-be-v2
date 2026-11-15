@@ -60,6 +60,9 @@ class Event(models.Model):
     )
     recurrence_end_date = models.DateField(null=True, blank=True)
     
+    # Public church website: shown there only when the admin opts in.
+    show_on_website = models.BooleanField(default=False)
+    
     # Attendees (JSON field with member IDs)
     attendees = models.JSONField(default=list, blank=True)
     

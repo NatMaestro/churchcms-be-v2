@@ -24,11 +24,19 @@ from .serializers import (
 from .models import PasswordResetToken
 from apps.churches.models import Church, Domain
 from core.permissions import IsChurchAdminOrSuperAdmin
+from django.core.mail import send_mail
 from django.utils import timezone
 from datetime import timedelta
+import logging
 import secrets
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
+
+PASSWORD_RESET_TOKEN_BYTES = 32
+PASSWORD_RESET_TOKEN_LIFETIME_HOURS = 1
+PASSWORD_RESET_TOKEN_LIFETIME = timedelta(hours=PASSWORD_RESET_TOKEN_LIFETIME_HOURS)
+FORGOT_PASSWORD_RESPONSE_MESSAGE = 'If an account exists for that email, a reset link has been sent.'
 
 
 def set_auth_cookies(response, access_token: str, refresh_token: str, request):
@@ -391,40 +399,56 @@ class ForgotPasswordView(APIView):
         serializer = ForgotPasswordSerializer(data=request.data)
         if serializer.is_valid():
             email = serializer.validated_data['email']
-            
-            try:
-                user = User.objects.get(email=email)
-                
-                # Generate reset token
-                token = f"reset_{int(timezone.now().timestamp())}_{secrets.token_urlsafe(16)}"
-                
-                # Create reset token record
-                reset_token = PasswordResetToken.objects.create(
-                    user=user,
-                    token=token,
-                    email=email,
-                    expires_at=timezone.now() + timedelta(hours=24)
-                )
-                
-                # TODO: Send email with reset link
-                # send_password_reset_email(user, token)
-                
-                return Response({
-                    'success': True,
-                    'message': 'Password reset email sent',
-                    'token': token  # Remove in production
-                })
-            except User.DoesNotExist:
-                # Don't reveal if user exists
-                return Response({
-                    'success': True,
-                    'message': 'If the email exists, a reset link has been sent'
-                })
-        
+
+            user = User.objects.filter(email__iexact=email, is_active=True).first()
+            if user is not None:
+                self._issue_reset_token(user)
+
+            # Identical response whether or not the account exists, so this
+            # endpoint cannot be used to discover registered emails. The token
+            # is only ever delivered by email, never in the response.
+            return Response({
+                'success': True,
+                'message': FORGOT_PASSWORD_RESPONSE_MESSAGE,
+            })
+
         return Response({
             'success': False,
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
+    @staticmethod
+    def _issue_reset_token(user):
+        """Create a fresh reset token for `user` and email them the reset link."""
+        # Only the newest link should work.
+        PasswordResetToken.objects.filter(user=user, used=False).update(used=True)
+
+        token = secrets.token_urlsafe(PASSWORD_RESET_TOKEN_BYTES)
+        PasswordResetToken.objects.create(
+            user=user,
+            token=token,
+            email=user.email,
+            expires_at=timezone.now() + PASSWORD_RESET_TOKEN_LIFETIME,
+        )
+
+        reset_link = f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={token}"
+        try:
+            send_mail(
+                subject='Reset your FaithFlow password',
+                message=(
+                    f"Hello {user.name},\n\n"
+                    "We received a request to reset your FaithFlow password. "
+                    f"Use this link within {PASSWORD_RESET_TOKEN_LIFETIME_HOURS} hour(s):\n\n"
+                    f"{reset_link}\n\n"
+                    "If you did not ask for this, you can ignore this email."
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+            )
+        except Exception:
+            # The response stays generic either way; the failure is logged
+            # (user id only, never the token) so it can be investigated.
+            logger.exception('password_reset_email_failed', extra={'user_id': user.id})
 
 
 class ResetPasswordView(APIView):

@@ -4,11 +4,13 @@ Handles public submissions and admin approval workflow.
 """
 
 from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
+from rest_framework.throttling import AnonRateThrottle
 from rest_framework.response import Response
 from django.utils import timezone
 from django.db import transaction
 from django.db import connection
+from django_tenants.utils import tenant_context
 from apps.churches.models import Church
 from apps.authentication.models import User
 from .models import MemberRequest, Member
@@ -199,29 +201,45 @@ class MemberRequestViewSet(viewsets.ModelViewSet):
         })
 
 
+class MemberRequestSubmitThrottle(AnonRateThrottle):
+    """Per-IP limit on public membership applications (rate set in settings)."""
+
+    scope = 'member_request_submit'
+
+
+MEMBER_REQUEST_SUBMITTED_MESSAGE = (
+    'Membership request submitted successfully. You will be notified once reviewed.'
+)
+
+
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])  # Public endpoint
+@throttle_classes([AnonRateThrottle, MemberRequestSubmitThrottle])
 def submit_member_request(request):
     """
     Public endpoint for submitting member requests.
     No authentication required.
-    
-    POST /api/v1/member-requests/submit/
+
+    POST /api/v1/members/member-requests/submit/
     Body: {
         "subdomain": "churchsubdomain",
         "name": "...",
         "email": "...",
         ...
     }
+
+    A repeat application from an email that already has a pending or approved
+    request gets the same response as a new one and creates nothing, so the
+    endpoint cannot be used to find out who has applied.
     """
     serializer = MemberRequestPublicSerializer(data=request.data)
-    
+
     if not serializer.is_valid():
         return Response({
             'success': False,
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
-    
+
     # Get church by subdomain
     subdomain = request.data.get('subdomain')
     if not subdomain:
@@ -229,7 +247,7 @@ def submit_member_request(request):
             'success': False,
             'error': 'subdomain is required'
         }, status=status.HTTP_400_BAD_REQUEST)
-    
+
     try:
         church = Church.objects.get(subdomain=subdomain, is_active=True)
     except Church.DoesNotExist:
@@ -237,34 +255,25 @@ def submit_member_request(request):
             'success': False,
             'error': 'Church not found or inactive'
         }, status=status.HTTP_404_NOT_FOUND)
-    
-    # Check for duplicate pending/approved requests
-    existing = MemberRequest.objects.filter(
-        email=serializer.validated_data['email'],
-        church=church,
-        status__in=['pending', 'approved']
-    ).exists()
-    
-    if existing:
-        return Response({
-            'success': False,
-            'error': 'You already have a pending or approved membership request for this church.'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Create member request
-    member_request = MemberRequest.objects.create(
-        church=church,
-        **serializer.validated_data
-    )
-    
+
+    # MemberRequest lives in the church's own schema; the request arrives
+    # without a tenant header, so switch to that schema explicitly.
+    with tenant_context(church):
+        already_applied = MemberRequest.objects.filter(
+            email__iexact=serializer.validated_data['email'],
+            church=church,
+            status__in=['pending', 'approved']
+        ).exists()
+
+        if not already_applied:
+            MemberRequest.objects.create(
+                church=church,
+                **serializer.validated_data
+            )
+
     return Response({
         'success': True,
-        'message': 'Membership request submitted successfully. You will be notified once reviewed.',
-        'data': {
-            'id': member_request.id,
-            'status': member_request.status,
-            'submitted_at': member_request.submitted_at
-        }
+        'message': MEMBER_REQUEST_SUBMITTED_MESSAGE,
     }, status=status.HTTP_201_CREATED)
 
 

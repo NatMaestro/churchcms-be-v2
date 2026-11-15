@@ -255,8 +255,12 @@ class ChurchViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='upgrade-subscription', url_name='upgrade-subscription')
     def upgrade_subscription(self, request, pk=None):
         """
-        Upgrade church subscription to a paid plan.
-        
+        Manually set a church's paid plan, without payment.
+
+        Platform superadmins only (e.g. to comp a church). Church admins used to
+        be allowed, which let any church give itself a paid plan for free; they
+        must go through the Paystack payment flow instead.
+
         POST /api/v1/churches/:id/upgrade-subscription/
         Body: {
             "plan": "basic|standard|premium|enterprise",
@@ -265,17 +269,15 @@ class ChurchViewSet(viewsets.ModelViewSet):
         """
         from django.utils import timezone
         from datetime import timedelta
-        
-        church = self.get_object()
-        
-        # Check permissions
-        if not (request.user.is_superadmin or 
-                (request.user.church and request.user.church.id == church.id and request.user.is_church_admin)):
+
+        if not request.user.is_superadmin:
             return Response({
                 'success': False,
                 'error': 'Permission denied'
             }, status=status.HTTP_403_FORBIDDEN)
-        
+
+        church = self.get_object()
+
         plan = request.data.get('plan')
         duration = request.data.get('duration', 'monthly')
         

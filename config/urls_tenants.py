@@ -9,12 +9,8 @@ from drf_spectacular.views import (
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
-from apps.churches.views_debug import DebugTenantView
 
 urlpatterns = [
-    # Debug endpoint (remove in production)
-    path('debug/tenant/', DebugTenantView.as_view(), name='debug-tenant'),
-    
     # API Documentation (per tenant)
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),

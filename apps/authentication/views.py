@@ -23,18 +23,17 @@ from .serializers import (
     ChurchRegistrationSerializer
 )
 from .models import PasswordResetToken
+from .tokens import issue_password_token
 from apps.churches.models import Church, Domain
 from core.permissions import IsChurchAdminOrSuperAdmin
 from django.core.mail import send_mail
 from django.utils import timezone
 from datetime import timedelta
 import logging
-import secrets
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
-PASSWORD_RESET_TOKEN_BYTES = 32
 PASSWORD_RESET_TOKEN_LIFETIME_HOURS = 1
 PASSWORD_RESET_TOKEN_LIFETIME = timedelta(hours=PASSWORD_RESET_TOKEN_LIFETIME_HOURS)
 FORGOT_PASSWORD_RESPONSE_MESSAGE = 'If an account exists for that email, a reset link has been sent.'
@@ -427,16 +426,7 @@ class ForgotPasswordView(APIView):
     @staticmethod
     def _issue_reset_token(user):
         """Create a fresh reset token for `user` and email them the reset link."""
-        # Only the newest link should work.
-        PasswordResetToken.objects.filter(user=user, used=False).update(used=True)
-
-        token = secrets.token_urlsafe(PASSWORD_RESET_TOKEN_BYTES)
-        PasswordResetToken.objects.create(
-            user=user,
-            token=token,
-            email=user.email,
-            expires_at=timezone.now() + PASSWORD_RESET_TOKEN_LIFETIME,
-        )
+        token = issue_password_token(user, PASSWORD_RESET_TOKEN_LIFETIME)
 
         reset_link = f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={token}"
         try:
@@ -480,6 +470,9 @@ class ResetPasswordView(APIView):
                 # Reset password
                 user = reset_token.user
                 user.set_password(new_password)
+                # They just chose this password themselves (reset or invite
+                # link), so there is nothing left to force them to change.
+                user.must_change_password = False
                 user.save()
                 
                 # Mark token as used

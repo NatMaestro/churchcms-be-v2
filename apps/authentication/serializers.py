@@ -8,6 +8,8 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
+CHURCH_ADMIN_ASSIGNABLE_ROLES = ('admin', 'member')
+
 
 class ChurchBasicSerializer(serializers.Serializer):
     """Basic church info for user serializer."""
@@ -39,11 +41,25 @@ class UserSerializer(serializers.ModelSerializer):
             'is_active', 'must_change_password', 'created_at',
             'last_login', 'password'
         ]
-        read_only_fields = ['id', 'created_at', 'last_login']
+        # `church` is always assigned server-side (see create()); accepting it
+        # from the client let a user move themselves into another church.
+        read_only_fields = ['id', 'church', 'created_at', 'last_login']
         extra_kwargs = {
             'password': {'write_only': True}
         }
-    
+
+    def validate_role(self, value):
+        """Only superadmins may grant superadmin; church admins may grant admin/member."""
+        request = self.context.get('request')
+        requester = getattr(request, 'user', None)
+        if requester is None or not requester.is_authenticated:
+            raise serializers.ValidationError('Not allowed to set a role.')
+        if requester.is_superadmin:
+            return value
+        if requester.is_church_admin and value in CHURCH_ADMIN_ASSIGNABLE_ROLES:
+            return value
+        raise serializers.ValidationError('You are not allowed to assign this role.')
+
     def get_church_details(self, obj):
         """Get church details if exists."""
         if obj.church:

@@ -23,6 +23,7 @@ from .serializers import (
 )
 from .models import PasswordResetToken
 from apps.churches.models import Church, Domain
+from core.permissions import IsChurchAdminOrSuperAdmin
 from django.utils import timezone
 from datetime import timedelta
 import secrets
@@ -471,33 +472,34 @@ class ResetPasswordView(APIView):
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    """User management viewset."""
+    """
+    User management.
+
+    - Church admins manage the users of their own church.
+    - Superadmins manage everyone.
+    - Members may only read their own record (the frontend loads it after login);
+      every write is admin-only.
+    The church a user belongs to is always set server-side, never from the request.
+    """
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticated(), IsChurchAdminOrSuperAdmin()]
+
     def get_queryset(self):
-        """Filter users by church (except superadmins)."""
         user = self.request.user
         if user.is_superadmin:
             return User.objects.all()
-        return User.objects.filter(church=user.church)
-    
+        if user.is_church_admin and user.church_id:
+            return User.objects.filter(church_id=user.church_id)
+        return User.objects.filter(pk=user.pk)
+
     def get_serializer_context(self):
         """Add request to serializer context."""
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
-    
-    def create(self, request, *args, **kwargs):
-        """Create user with proper church assignment."""
-        # In multi-tenant setup, users created in a tenant schema MUST belong to that tenant's church
-        # This prevents data inconsistency where a user exists in tenant A's schema
-        # but their church field points to tenant B
-        
-        # Always force the church to be the current tenant's church
-        # This ensures data consistency regardless of what the frontend sends
-        if request.user.church:
-            request.data['church'] = request.user.church.id
-        
-        return super().create(request, *args, **kwargs)

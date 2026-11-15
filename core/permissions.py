@@ -23,6 +23,19 @@ class IsChurchAdmin(permissions.BasePermission):
         return request.user and request.user.is_authenticated and request.user.is_church_admin
 
 
+class IsChurchAdminOrSuperAdmin(permissions.BasePermission):
+    """
+    Permission to only allow church admins or super admins.
+    """
+
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and (request.user.is_church_admin or request.user.is_superadmin)
+        )
+
+
 class IsAdminOrReadOnly(permissions.BasePermission):
     """
     Permission to allow read access to all, write access to admins only.

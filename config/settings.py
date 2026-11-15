@@ -44,6 +44,7 @@ SHARED_APPS = [
     # Third-party apps
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',  # Required by BLACKLIST_AFTER_ROTATION and logout
     'corsheaders',
     'drf_spectacular',
     'django_filters',
@@ -424,5 +425,3 @@ RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE', 60))
 # File Upload Settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
-
-print(f"Database URL: {DATABASES}")

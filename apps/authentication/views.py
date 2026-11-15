@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from django.db import connection, transaction
@@ -23,11 +24,20 @@ from .serializers import (
 )
 from .models import PasswordResetToken
 from apps.churches.models import Church, Domain
+from core.permissions import IsChurchAdminOrSuperAdmin
+from django.core.mail import send_mail
 from django.utils import timezone
 from datetime import timedelta
+import logging
 import secrets
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
+
+PASSWORD_RESET_TOKEN_BYTES = 32
+PASSWORD_RESET_TOKEN_LIFETIME_HOURS = 1
+PASSWORD_RESET_TOKEN_LIFETIME = timedelta(hours=PASSWORD_RESET_TOKEN_LIFETIME_HOURS)
+FORGOT_PASSWORD_RESPONSE_MESSAGE = 'If an account exists for that email, a reset link has been sent.'
 
 
 def set_auth_cookies(response, access_token: str, refresh_token: str, request):
@@ -126,7 +136,12 @@ class CustomTokenRefreshView(TokenRefreshView):
                 data['refresh'] = refresh_from_cookie
 
         serializer = self.get_serializer(data=data)
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as e:
+            # Same handling as simplejwt's own TokenViewBase: an expired or
+            # revoked refresh token is a 401, not a 500.
+            raise InvalidToken(e.args[0])
         response = Response(serializer.validated_data, status=status.HTTP_200_OK)
 
         if response.status_code == status.HTTP_200_OK and response.data.get('access'):
@@ -319,22 +334,23 @@ class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def post(self, request):
+        refresh_token = request.data.get('refresh') or request.COOKIES.get(settings.REFRESH_TOKEN_COOKIE_NAME)
         try:
-            refresh_token = request.data.get('refresh') or request.COOKIES.get(settings.REFRESH_TOKEN_COOKIE_NAME)
-            token = RefreshToken(refresh_token)
-            token.blacklist()
+            if not refresh_token:
+                # RefreshToken(None) would mint a brand-new token, not fail.
+                raise TokenError('No refresh token supplied')
+            RefreshToken(refresh_token).blacklist()
+        except TokenError:
+            # Missing, expired or already-blacklisted refresh token: nothing left
+            # to revoke, but the browser must still be logged out below.
+            logger.info('logout_without_valid_refresh_token', extra={'user_id': request.user.pk})
 
-            response = Response({
-                'success': True,
-                'message': 'Logged out successfully'
-            }, status=status.HTTP_200_OK)
-            clear_auth_cookies(response)
-            return response
-        except Exception:
-            return Response({
-                'success': False,
-                'error': 'Invalid token'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        response = Response({
+            'success': True,
+            'message': 'Logged out successfully'
+        }, status=status.HTTP_200_OK)
+        clear_auth_cookies(response)
+        return response
 
 
 class MeView(APIView):
@@ -390,40 +406,56 @@ class ForgotPasswordView(APIView):
         serializer = ForgotPasswordSerializer(data=request.data)
         if serializer.is_valid():
             email = serializer.validated_data['email']
-            
-            try:
-                user = User.objects.get(email=email)
-                
-                # Generate reset token
-                token = f"reset_{int(timezone.now().timestamp())}_{secrets.token_urlsafe(16)}"
-                
-                # Create reset token record
-                reset_token = PasswordResetToken.objects.create(
-                    user=user,
-                    token=token,
-                    email=email,
-                    expires_at=timezone.now() + timedelta(hours=24)
-                )
-                
-                # TODO: Send email with reset link
-                # send_password_reset_email(user, token)
-                
-                return Response({
-                    'success': True,
-                    'message': 'Password reset email sent',
-                    'token': token  # Remove in production
-                })
-            except User.DoesNotExist:
-                # Don't reveal if user exists
-                return Response({
-                    'success': True,
-                    'message': 'If the email exists, a reset link has been sent'
-                })
-        
+
+            user = User.objects.filter(email__iexact=email, is_active=True).first()
+            if user is not None:
+                self._issue_reset_token(user)
+
+            # Identical response whether or not the account exists, so this
+            # endpoint cannot be used to discover registered emails. The token
+            # is only ever delivered by email, never in the response.
+            return Response({
+                'success': True,
+                'message': FORGOT_PASSWORD_RESPONSE_MESSAGE,
+            })
+
         return Response({
             'success': False,
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
+    @staticmethod
+    def _issue_reset_token(user):
+        """Create a fresh reset token for `user` and email them the reset link."""
+        # Only the newest link should work.
+        PasswordResetToken.objects.filter(user=user, used=False).update(used=True)
+
+        token = secrets.token_urlsafe(PASSWORD_RESET_TOKEN_BYTES)
+        PasswordResetToken.objects.create(
+            user=user,
+            token=token,
+            email=user.email,
+            expires_at=timezone.now() + PASSWORD_RESET_TOKEN_LIFETIME,
+        )
+
+        reset_link = f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={token}"
+        try:
+            send_mail(
+                subject='Reset your FaithFlow password',
+                message=(
+                    f"Hello {user.name},\n\n"
+                    "We received a request to reset your FaithFlow password. "
+                    f"Use this link within {PASSWORD_RESET_TOKEN_LIFETIME_HOURS} hour(s):\n\n"
+                    f"{reset_link}\n\n"
+                    "If you did not ask for this, you can ignore this email."
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+            )
+        except Exception:
+            # The response stays generic either way; the failure is logged
+            # (user id only, never the token) so it can be investigated.
+            logger.exception('password_reset_email_failed', extra={'user_id': user.id})
 
 
 class ResetPasswordView(APIView):
@@ -471,33 +503,34 @@ class ResetPasswordView(APIView):
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    """User management viewset."""
+    """
+    User management.
+
+    - Church admins manage the users of their own church.
+    - Superadmins manage everyone.
+    - Members may only read their own record (the frontend loads it after login);
+      every write is admin-only.
+    The church a user belongs to is always set server-side, never from the request.
+    """
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticated(), IsChurchAdminOrSuperAdmin()]
+
     def get_queryset(self):
-        """Filter users by church (except superadmins)."""
         user = self.request.user
         if user.is_superadmin:
             return User.objects.all()
-        return User.objects.filter(church=user.church)
-    
+        if user.is_church_admin and user.church_id:
+            return User.objects.filter(church_id=user.church_id)
+        return User.objects.filter(pk=user.pk)
+
     def get_serializer_context(self):
         """Add request to serializer context."""
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
-    
-    def create(self, request, *args, **kwargs):
-        """Create user with proper church assignment."""
-        # In multi-tenant setup, users created in a tenant schema MUST belong to that tenant's church
-        # This prevents data inconsistency where a user exists in tenant A's schema
-        # but their church field points to tenant B
-        
-        # Always force the church to be the current tenant's church
-        # This ensures data consistency regardless of what the frontend sends
-        if request.user.church:
-            request.data['church'] = request.user.church.id
-        
-        return super().create(request, *args, **kwargs)

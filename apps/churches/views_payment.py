@@ -2,6 +2,8 @@
 Subscription payment views for Paystack integration.
 """
 
+import hashlib
+import hmac
 import os
 import requests
 import logging
@@ -26,6 +28,14 @@ logger = logging.getLogger(__name__)
 PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY', '')
 PAYSTACK_PUBLIC_KEY = os.getenv('PAYSTACK_PUBLIC_KEY', '')
 PAYSTACK_BASE_URL = 'https://api.paystack.co'
+
+
+def is_valid_paystack_signature(raw_body: bytes, signature: str) -> bool:
+    """Paystack signs the raw request body with HMAC-SHA512 using the secret key."""
+    if not PAYSTACK_SECRET_KEY or not signature:
+        return False
+    expected = hmac.new(PAYSTACK_SECRET_KEY.encode(), raw_body, hashlib.sha512).hexdigest()
+    return hmac.compare_digest(expected, signature)
 
 
 @api_view(['POST'])
@@ -444,10 +454,17 @@ def paystack_webhook(request):
     """
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
-    
-    # Verify webhook signature (optional but recommended)
-    # You can add Paystack signature verification here
-    
+
+    # This endpoint is unauthenticated, so the signature is the only proof the
+    # event came from Paystack. Without this check anyone could POST a fake
+    # charge.success and activate a paid subscription.
+    if not PAYSTACK_SECRET_KEY:
+        logger.error('paystack_webhook_rejected', extra={'reason': 'secret_not_configured'})
+        return JsonResponse({'error': 'Webhook not configured'}, status=503)
+    if not is_valid_paystack_signature(request.body, request.headers.get('X-Paystack-Signature', '')):
+        logger.warning('paystack_webhook_rejected', extra={'reason': 'bad_signature'})
+        return JsonResponse({'error': 'Invalid signature'}, status=401)
+
     try:
         payload = json.loads(request.body)
         event = payload.get('event')

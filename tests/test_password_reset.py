@@ -3,6 +3,7 @@ Forgot-password must never return the reset token in the HTTP response.
 It used to, which let anyone take over any account knowing only its email.
 """
 import re
+import secrets
 
 from django.core import mail
 from django.test import TestCase, override_settings
@@ -12,6 +13,9 @@ from apps.authentication.models import PasswordResetToken, User
 
 FORGOT_URL = '/api/v1/auth/forgot-password/'
 RESET_URL = '/api/v1/auth/reset-password/'
+# Generated per run so no password literal lives in the repo.
+ORIGINAL_PASSWORD = secrets.token_urlsafe(16)
+NEW_PASSWORD = secrets.token_urlsafe(16)
 
 
 @override_settings(
@@ -22,7 +26,7 @@ class ForgotPasswordTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = User.objects.create_user(
-            email='victim@example.test', password='original-pass-123', name='Victim'
+            email='victim@example.test', password=ORIGINAL_PASSWORD, name='Victim'
         )
 
     def _emailed_token(self):
@@ -62,13 +66,13 @@ class ForgotPasswordTests(TestCase):
         second_token = self._emailed_token()
 
         stale = self.client.post(
-            RESET_URL, {'token': first_token, 'new_password': 'brand-new-pass-456'}, format='json'
+            RESET_URL, {'token': first_token, 'new_password': NEW_PASSWORD}, format='json'
         )
         fresh = self.client.post(
-            RESET_URL, {'token': second_token, 'new_password': 'brand-new-pass-456'}, format='json'
+            RESET_URL, {'token': second_token, 'new_password': NEW_PASSWORD}, format='json'
         )
 
         self.assertEqual(stale.status_code, 400)
         self.assertEqual(fresh.status_code, 200)
         self.user.refresh_from_db()
-        self.assertTrue(self.user.check_password('brand-new-pass-456'))
+        self.assertTrue(self.user.check_password(NEW_PASSWORD))

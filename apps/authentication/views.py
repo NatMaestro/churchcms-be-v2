@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from django.db import connection, transaction
@@ -135,7 +136,12 @@ class CustomTokenRefreshView(TokenRefreshView):
                 data['refresh'] = refresh_from_cookie
 
         serializer = self.get_serializer(data=data)
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as e:
+            # Same handling as simplejwt's own TokenViewBase: an expired or
+            # revoked refresh token is a 401, not a 500.
+            raise InvalidToken(e.args[0])
         response = Response(serializer.validated_data, status=status.HTTP_200_OK)
 
         if response.status_code == status.HTTP_200_OK and response.data.get('access'):
@@ -328,22 +334,23 @@ class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def post(self, request):
+        refresh_token = request.data.get('refresh') or request.COOKIES.get(settings.REFRESH_TOKEN_COOKIE_NAME)
         try:
-            refresh_token = request.data.get('refresh') or request.COOKIES.get(settings.REFRESH_TOKEN_COOKIE_NAME)
-            token = RefreshToken(refresh_token)
-            token.blacklist()
+            if not refresh_token:
+                # RefreshToken(None) would mint a brand-new token, not fail.
+                raise TokenError('No refresh token supplied')
+            RefreshToken(refresh_token).blacklist()
+        except TokenError:
+            # Missing, expired or already-blacklisted refresh token: nothing left
+            # to revoke, but the browser must still be logged out below.
+            logger.info('logout_without_valid_refresh_token', extra={'user_id': request.user.pk})
 
-            response = Response({
-                'success': True,
-                'message': 'Logged out successfully'
-            }, status=status.HTTP_200_OK)
-            clear_auth_cookies(response)
-            return response
-        except Exception:
-            return Response({
-                'success': False,
-                'error': 'Invalid token'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        response = Response({
+            'success': True,
+            'message': 'Logged out successfully'
+        }, status=status.HTTP_200_OK)
+        clear_auth_cookies(response)
+        return response
 
 
 class MeView(APIView):

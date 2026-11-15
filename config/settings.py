@@ -44,6 +44,7 @@ SHARED_APPS = [
     # Third-party apps
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',  # Required by BLACKLIST_AFTER_ROTATION and logout
     'corsheaders',
     'drf_spectacular',
     'django_filters',

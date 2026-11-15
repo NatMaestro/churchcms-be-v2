@@ -207,15 +207,42 @@ class ChurchWebsiteContentTests(TransactionTestCase):
 
     # --- admin side ---
 
-    def test_admin_can_mark_an_event_for_the_website(self):
-        event = self._event(self.church_a, 'Harvest Mass', show_on_website=False)
+    def _admin_client(self):
         client = APIClient()
         token = RefreshToken.for_user(self.admin_a).access_token
         client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}',
                            HTTP_X_TENANT_SUBDOMAIN=TEST_SCHEMAS[0])
+        return client
 
-        response = client.patch(f'/api/v1/events/{event.pk}/', {'show_on_website': True},
-                                format='json')
+    @staticmethod
+    def _results(response):
+        body = response.json()
+        return body['results'] if isinstance(body, dict) else body
+
+    def test_admin_event_list_has_what_the_edit_form_needs(self):
+        self._event(self.church_a, 'Harvest Mass', show_on_website=False)
+
+        event = self._results(self._admin_client().get('/api/v1/events/'))[0]
+
+        self.assertEqual(event['description'], 'Harvest Mass description')
+        self.assertFalse(event['show_on_website'])
+
+    def test_admin_announcement_list_has_what_the_edit_dialog_needs(self):
+        expires = self.now + timedelta(days=2)
+        self._announcement(self.church_a, 'Parish picnic', expires_at=expires)
+
+        announcement = self._results(self._admin_client().get('/api/v1/announcements/'))[0]
+
+        self.assertEqual(announcement['content'], 'Parish picnic text')
+        self.assertIsNotNone(announcement['expires_at'])
+        self.assertTrue(announcement['show_on_website'])
+
+    def test_admin_can_mark_an_event_for_the_website(self):
+        event = self._event(self.church_a, 'Harvest Mass', show_on_website=False)
+
+        response = self._admin_client().patch(
+            f'/api/v1/events/{event.pk}/', {'show_on_website': True}, format='json',
+        )
 
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(self._titles(self._get()['events']), ['Harvest Mass'])

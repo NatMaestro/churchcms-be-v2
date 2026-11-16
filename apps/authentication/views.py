@@ -25,6 +25,7 @@ from .serializers import (
 from .models import PasswordResetToken
 from .tokens import issue_password_token
 from apps.churches.models import Church, Domain
+from apps.churches.provisioning import create_church_domains
 from apps.churches.subscriptions import start_trial
 from core.frontend_links import frontend_url
 from core.permissions import IsChurchAdminOrSuperAdmin
@@ -216,21 +217,7 @@ class RegisterView(APIView):
                         
                         # Step 2: Create domains
                         logger.info("🌐 Step 2/4: Setting up domains...")
-                        Domain.objects.create(
-                            domain=f"{validated_data['subdomain']}.localhost",
-                            tenant=church,
-                            is_primary=True
-                        )
-                        logger.info(f"   ✅ Created domain: {validated_data['subdomain']}.localhost")
-                        
-                        # Create domain for production (if not in debug)
-                        if not settings.DEBUG:
-                            Domain.objects.create(
-                                domain=f"{validated_data['subdomain']}.faithflow360.com",
-                                tenant=church,
-                                is_primary=False
-                            )
-                            logger.info(f"   ✅ Created domain: {validated_data['subdomain']}.faithflow360.com")
+                        create_church_domains(church)
                         
                         # Step 3: Switch to tenant schema and create user
                         logger.info("👤 Step 3/4: Creating tenant schema and admin user...")

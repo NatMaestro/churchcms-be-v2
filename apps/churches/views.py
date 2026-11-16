@@ -6,6 +6,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from . import subscriptions
 from .models import Church, Domain
 from .serializers import ChurchSerializer, ChurchDetailSerializer, DomainSerializer, PublicChurchSerializer
 from core.permissions import IsSuperAdmin, IsChurchAdmin
@@ -216,16 +217,17 @@ class ChurchViewSet(viewsets.ModelViewSet):
             'features': church.features
         })
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='start-trial', url_name='start-trial')
     def start_trial(self, request, pk=None):
         """
-        Start a 30-day trial for the church.
-        
+        Start the church's free trial, once.
+
         POST /api/v1/churches/:id/start-trial/
+
+        Registration already starts the trial, so for a church admin this only
+        reports the existing trial. A church can never restart its own trial;
+        only a platform superadmin can (e.g. to give a church a fresh trial).
         """
-        from django.utils import timezone
-        from datetime import timedelta
-        
         church = self.get_object()
         
         # Check permissions
@@ -236,22 +238,20 @@ class ChurchViewSet(viewsets.ModelViewSet):
                 'error': 'Permission denied'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Set trial dates
-        now = timezone.now()
-        trial_end = now + timedelta(days=30)
-        
-        church.plan = 'trial'
-        church.subscription_status = 'active'
-        church.trial_started_at = now
-        church.trial_end_date = trial_end
-        church.save()
-        
+        if church.trial_started_at is None or request.user.is_superadmin:
+            subscriptions.start_trial(church)
+            church.save(update_fields=['plan', 'subscription_status',
+                                       'trial_started_at', 'trial_end_date', 'updated_at'])
+            message = 'Trial started successfully'
+        else:
+            message = 'Trial already started'
+
         return Response({
             'success': True,
-            'message': 'Trial started successfully',
+            'message': message,
             'trial_started_at': church.trial_started_at,
             'trial_end_date': church.trial_end_date,
-            'days_remaining': 30
+            'days_remaining': church.get_days_until_expiration(),
         })
     
     @action(detail=True, methods=['post'], url_path='upgrade-subscription', url_name='upgrade-subscription')

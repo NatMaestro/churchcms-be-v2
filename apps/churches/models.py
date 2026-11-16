@@ -31,17 +31,8 @@ class Church(TenantMixin):
     
     # Status
     is_active = models.BooleanField(default=True)
-    plan = models.CharField(
-        max_length=20,
-        choices=[
-            ('trial', 'Trial'),
-            ('basic', 'Basic'),
-            ('standard', 'Standard'),
-            ('premium', 'Premium'),
-            ('enterprise', 'Enterprise'),
-        ],
-        default='trial'
-    )
+    # 'trial' or a Plan.code. Plans live in the database, so this is not a fixed choice list.
+    plan = models.CharField(max_length=20, default='trial')
     subscription_status = models.CharField(
         max_length=20,
         choices=[
@@ -211,3 +202,7 @@ class Domain(DomainMixin):
     
     def __str__(self):
         return self.domain
+
+
+# Registered here so Django discovers it with the rest of the app's models.
+from .models_plan import Plan  # noqa: E402,F401

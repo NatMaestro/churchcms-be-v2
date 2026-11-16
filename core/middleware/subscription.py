@@ -36,6 +36,11 @@ class SubscriptionMiddleware:
             '/api/v1/auth/forgot-password/',
             '/api/v1/auth/reset-password/',
             '/api/v1/churches/subscription-payment/webhook/',  # Paystack webhook (no tenant needed)
+            # An expired church must still be able to pay to renew.
+            '/api/v1/churches/subscription-payment/initialize/',
+            '/api/v1/churches/subscription-payment/verify/',
+            '/api/v1/churches/subscription-payment/callback/',
+            '/api/v1/plans/',
             '/health/',
             '/api/docs/',
             '/api/schema/',
@@ -58,18 +63,6 @@ class SubscriptionMiddleware:
         if getattr(tenant, 'bypass_subscription_check', False):
             logger.info(f'Subscription check bypassed for church: {tenant.name} (ID: {tenant.id})')
             # Still add subscription info but mark as bypassed
-            request.subscription_status = {
-                'status': 'bypassed',
-                'can_access': True,
-                'error': None,
-                'days_remaining': None,
-                'bypassed': True,
-            }
-            return self.get_response(request)
-        
-        # Bypass for apostolic church (testing/development)
-        if hasattr(tenant, 'subdomain') and tenant.subdomain in ['apostolic', 'apostolicchurch']:
-            logger.info(f'Subscription check bypassed for apostolic church: {tenant.name}')
             request.subscription_status = {
                 'status': 'bypassed',
                 'can_access': True,

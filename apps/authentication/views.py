@@ -25,6 +25,7 @@ from .serializers import (
 from .models import PasswordResetToken
 from .tokens import issue_password_token
 from apps.churches.models import Church, Domain
+from apps.churches.subscriptions import start_trial
 from core.frontend_links import frontend_url
 from core.permissions import IsChurchAdminOrSuperAdmin
 from django.core.mail import send_mail
@@ -185,9 +186,12 @@ class RegisterView(APIView):
                             email=validated_data['email'],
                             denomination=validated_data.get('denomination', ''),
                             features=validated_data.get('features', {}),
-                            plan='trial',
                             is_active=True
                         )
+                        # The free trial starts now, on the server; the client cannot extend it.
+                        start_trial(church)
+                        church.save(update_fields=['plan', 'subscription_status',
+                                                   'trial_started_at', 'trial_end_date'])
                         logger.info(f"   ✅ Church created: {church.name} (ID: {church.id})")
                         
                         # Log enabled features

@@ -12,6 +12,9 @@ from .serializers import ChurchSerializer, ChurchDetailSerializer, DomainSeriali
 from core.permissions import IsSuperAdmin, IsChurchAdmin
 
 
+BILLING_HISTORY_LIMIT = 24
+
+
 class ChurchViewSet(viewsets.ModelViewSet):
     """
     Church management viewset.
@@ -330,6 +333,35 @@ class ChurchViewSet(viewsets.ModelViewSet):
             'duration': duration
         })
     
+    @action(detail=True, methods=['get'], url_path='subscription-payments')
+    def subscription_payments(self, request, pk=None):
+        """
+        The church's completed subscription payments, newest first (church admins
+        and platform superadmins). Read-only billing history for the Billing page.
+
+        GET /api/v1/churches/:id/subscription-payments/
+        """
+        church = self.get_object()
+        if not (request.user.is_superadmin
+                or (request.user.church_id == church.id and request.user.is_church_admin)):
+            return Response({'success': False, 'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        payments = church.subscription_payments.filter(status='completed').order_by('-completed_at')
+        return Response({
+            'success': True,
+            'payments': [{
+                'reference': payment.reference,
+                'amount': str(payment.amount),
+                'currency': payment.currency,
+                'plan': payment.plan,
+                'duration': payment.duration,
+                'payment_method': payment.payment_method,
+                'completed_at': payment.completed_at,
+                'period_start': payment.subscription_start_date,
+                'period_end': payment.subscription_end_date,
+            } for payment in payments[:BILLING_HISTORY_LIMIT]],
+        })
+
     @action(detail=True, methods=['get'])
     def subscription_status(self, request, pk=None):
         """

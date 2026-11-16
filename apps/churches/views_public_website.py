@@ -77,6 +77,16 @@ def _website_announcements(now):
             .order_by('-is_urgent', '-created_at')[:MAX_ANNOUNCEMENTS])
 
 
+def _readable_from_any_site(response):
+    """
+    Let a church's own website (any domain) read this public feed from the
+    visitor's browser. No cookies are involved: browsers never send or expose
+    credentials with a wildcard origin, and the feed holds no private data.
+    """
+    response['Access-Control-Allow-Origin'] = '*'
+    return response
+
+
 def _website_ministries():
     return Ministry.objects.filter(is_active=True).order_by('name')[:MAX_MINISTRIES]
 
@@ -94,8 +104,8 @@ def church_website_content(request, subdomain):
     try:
         church = Church.objects.get(subdomain=subdomain, is_active=True)
     except Church.DoesNotExist:
-        return Response({'success': False, 'error': 'Church not found or inactive'},
-                        status=status.HTTP_404_NOT_FOUND)
+        return _readable_from_any_site(Response({'success': False, 'error': 'Church not found or inactive'},
+                                                status=status.HTTP_404_NOT_FOUND))
 
     now = timezone.now()
     with tenant_context(church):
@@ -105,4 +115,4 @@ def church_website_content(request, subdomain):
             'announcements': WebsiteAnnouncementSerializer(_website_announcements(now), many=True).data,
             'ministries': WebsiteMinistrySerializer(_website_ministries(), many=True).data,
         }
-    return Response(data)
+    return _readable_from_any_site(Response(data))

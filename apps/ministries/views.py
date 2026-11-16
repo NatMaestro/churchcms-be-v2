@@ -11,6 +11,10 @@ from .serializers import (
     MinistryDetailSerializer,
     MinistryMembershipSerializer
 )
+from django.db import transaction
+from django.db.models import Exists, OuterRef
+
+from core.member_context import acting_member
 from core.permissions import IsAdminOrReadOnly
 
 
@@ -30,9 +34,18 @@ class MinistryViewSet(viewsets.ModelViewSet):
             return MinistryDetailSerializer
         return MinistrySerializer
     
+    def get_permissions(self):
+        """Any signed-in church user may join or leave; changing ministries stays with admins."""
+        if self.action in ('join', 'leave'):
+            return [permissions.IsAuthenticated()]
+        return super().get_permissions()
+
     def get_queryset(self):
-        """Filter ministries by current tenant."""
-        return Ministry.objects.filter(is_active=True).order_by('name')
+        """Active ministries, each marked with whether the signed-in person belongs to it."""
+        my_membership = MinistryMembership.objects.filter(
+            ministry=OuterRef('pk'), member__user=self.request.user, status='active',
+        )
+        return Ministry.objects.filter(is_active=True).annotate(is_member=Exists(my_membership)).order_by('name')
     
     def perform_create(self, serializer):
         """Set created_by to current user."""
@@ -47,35 +60,40 @@ class MinistryViewSet(viewsets.ModelViewSet):
         Body: { "member_id": "xxx" }
         """
         ministry = self.get_object()
-        member_id = request.data.get('member_id')
+        member = acting_member(request)
         
-        if not member_id:
+        if member is None:
             return Response({
                 'success': False,
-                'error': 'member_id is required'
+                'error': 'No member record found to join with.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Check capacity
-        if ministry.max_capacity:
-            current_members = ministry.members.filter(ministrymembership__status='active').count()
-            if current_members >= ministry.max_capacity:
+        with transaction.atomic():
+            # Lock the ministry so two joins cannot both take the last place.
+            ministry = Ministry.objects.select_for_update().get(pk=ministry.pk)
+            membership = MinistryMembership.objects.filter(ministry=ministry, member=member).first()
+            if membership and membership.status == 'active':
                 return Response({
                     'success': False,
-                    'error': 'Ministry is at capacity'
+                    'error': 'Already a member of this ministry'
                 }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Create membership
-        membership, created = MinistryMembership.objects.get_or_create(
-            ministry=ministry,
-            member_id=member_id,
-            defaults={'status': 'active', 'role': 'member'}
-        )
-        
-        if not created:
-            return Response({
-                'success': False,
-                'error': 'Already a member of this ministry'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check capacity
+            if ministry.max_capacity:
+                current_members = ministry.members.filter(ministrymembership__status='active').count()
+                if current_members >= ministry.max_capacity:
+                    return Response({
+                        'success': False,
+                        'error': 'Ministry is at capacity'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if membership:  # rejoining after leaving
+                membership.status = 'active'
+                membership.save(update_fields=['status'])
+            else:
+                membership = MinistryMembership.objects.create(
+                    ministry=ministry, member=member, status='active', role='member',
+                )
         
         return Response({
             'success': True,
@@ -92,12 +110,12 @@ class MinistryViewSet(viewsets.ModelViewSet):
         Body: { "member_id": "xxx" }
         """
         ministry = self.get_object()
-        member_id = request.data.get('member_id')
+        member = acting_member(request)
         
         try:
             membership = MinistryMembership.objects.get(
                 ministry=ministry,
-                member_id=member_id,
+                member=member,
                 status='active'
             )
             membership.status = 'inactive'

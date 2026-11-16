@@ -14,6 +14,7 @@ from .serializers import (
     PledgeSerializer,
     TaxReceiptSerializer
 )
+from core.member_context import is_church_staff
 from core.permissions import IsAdminOrReadOnly
 from core.services import ExportService
 
@@ -35,8 +36,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return PaymentSerializer
     
     def get_queryset(self):
-        """Filter payments by current tenant."""
-        return Payment.objects.all().order_by('-date')
+        """Church staff see every payment; a member sees only their own."""
+        payments = Payment.objects.all()
+        if not is_church_staff(self.request.user):
+            payments = payments.filter(member__user=self.request.user)
+        return payments.order_by('-date')
     
     @action(detail=False, methods=['get'])
     def statistics(self, request):
@@ -112,7 +116,10 @@ class PledgeViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Filter pledges by current tenant."""
-        return Pledge.objects.all().order_by('-created_at')
+        pledges = Pledge.objects.all()
+        if not is_church_staff(self.request.user):
+            pledges = pledges.filter(member__user=self.request.user)
+        return pledges.order_by('-created_at')
 
 
 class TaxReceiptViewSet(viewsets.ModelViewSet):

@@ -13,3 +13,14 @@ tests.test_member_invites
 tests.test_church_website_content
 tests.test_church_lookup
 tests.test_frontend_links
+tests.test_subscription_engine
+tests.test_platform_admin
+tests.test_demo_requests
+tests.test_platform_create_church
+tests.test_church_billing
+tests.test_platform_settings
+tests.test_platform_domain
+tests.test_member_data_scoping
+tests.test_church_notifications
+tests.test_api_docs_access
+tests.test_prayer_requests

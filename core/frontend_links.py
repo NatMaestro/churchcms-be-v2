@@ -2,11 +2,11 @@
 Links to the web app that go out in emails (password reset, member invites,
 admin alerts).
 
-Each church uses the app at its own subdomain, e.g. https://olamchurch.faithflow360.com,
+Each church uses the app at its own subdomain, e.g. https://gracechapel.flocktend.com,
 so a link for someone in a church opens on that church's site. The church site is
 the FRONTEND_URL host with any leading "www." replaced by the church subdomain:
 
-    FRONTEND_URL=https://www.faithflow360.com  ->  https://<subdomain>.faithflow360.com
+    FRONTEND_URL=https://www.flocktend.com  ->  https://<subdomain>.flocktend.com
     FRONTEND_URL=http://localhost:8080         ->  http://<subdomain>.localhost:8080
 
 People without a church (platform superadmins) get FRONTEND_URL itself.

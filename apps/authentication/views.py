@@ -25,6 +25,8 @@ from .serializers import (
 from .models import PasswordResetToken
 from .tokens import issue_password_token
 from apps.churches.models import Church, Domain
+from apps.churches.provisioning import create_church_domains
+from apps.churches.subscriptions import start_trial
 from core.frontend_links import frontend_url
 from core.permissions import IsChurchAdminOrSuperAdmin
 from django.core.mail import send_mail
@@ -185,9 +187,12 @@ class RegisterView(APIView):
                             email=validated_data['email'],
                             denomination=validated_data.get('denomination', ''),
                             features=validated_data.get('features', {}),
-                            plan='trial',
                             is_active=True
                         )
+                        # The free trial starts now, on the server; the client cannot extend it.
+                        start_trial(church)
+                        church.save(update_fields=['plan', 'subscription_status',
+                                                   'trial_started_at', 'trial_end_date'])
                         logger.info(f"   ✅ Church created: {church.name} (ID: {church.id})")
                         
                         # Log enabled features
@@ -212,21 +217,7 @@ class RegisterView(APIView):
                         
                         # Step 2: Create domains
                         logger.info("🌐 Step 2/4: Setting up domains...")
-                        Domain.objects.create(
-                            domain=f"{validated_data['subdomain']}.localhost",
-                            tenant=church,
-                            is_primary=True
-                        )
-                        logger.info(f"   ✅ Created domain: {validated_data['subdomain']}.localhost")
-                        
-                        # Create domain for production (if not in debug)
-                        if not settings.DEBUG:
-                            Domain.objects.create(
-                                domain=f"{validated_data['subdomain']}.faithflow360.com",
-                                tenant=church,
-                                is_primary=False
-                            )
-                            logger.info(f"   ✅ Created domain: {validated_data['subdomain']}.faithflow360.com")
+                        create_church_domains(church)
                         
                         # Step 3: Switch to tenant schema and create user
                         logger.info("👤 Step 3/4: Creating tenant schema and admin user...")
@@ -433,10 +424,10 @@ class ForgotPasswordView(APIView):
         reset_link = frontend_url(f'/reset-password?token={token}', user.church)
         try:
             send_mail(
-                subject='Reset your FaithFlow password',
+                subject=f'Reset your {settings.PLATFORM_NAME} password',
                 message=(
                     f"Hello {user.name},\n\n"
-                    "We received a request to reset your FaithFlow password. "
+                    f"We received a request to reset your {settings.PLATFORM_NAME} password. "
                     f"Use this link within {PASSWORD_RESET_TOKEN_LIFETIME_HOURS} hour(s):\n\n"
                     f"{reset_link}\n\n"
                     "If you did not ask for this, you can ignore this email."

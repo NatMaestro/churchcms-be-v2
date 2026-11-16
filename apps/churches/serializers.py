@@ -35,7 +35,14 @@ class ChurchSerializer(serializers.ModelSerializer):
             'service_request_types', 'created_at', 'updated_at',
             'domains'
         ]
-        read_only_fields = ['id', 'schema_name', 'created_at', 'updated_at']
+        # Subscription fields change only through payments or platform-admin
+        # actions; a church must not be able to give itself time or free access.
+        read_only_fields = [
+            'id', 'schema_name', 'created_at', 'updated_at',
+            'plan', 'subscription_status', 'trial_started_at', 'trial_end_date',
+            'subscription_start_date', 'subscription_end_date', 'grace_period_days',
+            'bypass_subscription_check',
+        ]
 
 
 class PublicChurchSerializer(serializers.ModelSerializer):

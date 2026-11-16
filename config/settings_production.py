@@ -9,7 +9,7 @@ DEBUG = False
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # Hosts
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '.onrender.com,.faithflow360.com,*.faithflow360.com').split(',')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', ','.join(['.onrender.com'] + [f'.{d}' for d in ACCEPTED_PLATFORM_DOMAINS])).split(',')
 
 # Database - Use Neon PostgreSQL (DATABASE_URL from .env)
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -48,7 +48,7 @@ SECURE_HSTS_PRELOAD = True
 # CORS - Update with your frontend domain
 CORS_ALLOWED_ORIGINS = os.getenv(
     'CORS_ALLOWED_ORIGINS',
-    'https://faithflow360.com,https://www.faithflow360.com'
+    ','.join(f'https://{d},https://www.{d}' for d in ACCEPTED_PLATFORM_DOMAINS)
 ).split(',')
 
 # Cache - Use Redis in production (if available)

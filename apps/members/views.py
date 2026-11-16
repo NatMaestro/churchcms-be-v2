@@ -13,15 +13,20 @@ from .serializers import (
     MemberWorkflowSerializer
 )
 from core.services import ExportService
+from core.member_context import is_church_staff, member_for
 from core.permissions import IsChurchAdmin, IsAdminOrReadOnly
 
 
 class MemberViewSet(viewsets.ModelViewSet):
-    """Member management viewset."""
+    """
+    Member management viewset.
+    Church staff see and change every member; a member can only read their
+    own record (see core.member_context).
+    """
     
     queryset = Member.objects.all()
     serializer_class = MemberSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
     filterset_fields = ['status', 'gender']
     search_fields = ['first_name', 'last_name', 'email', 'phone', 'member_id']
     ordering_fields = ['created_at', 'last_name', 'membership_date']
@@ -35,9 +40,25 @@ class MemberViewSet(viewsets.ModelViewSet):
         return MemberSerializer
     
     def get_queryset(self):
-        """Filter members by current tenant."""
-        # Members are tenant-specific (in tenant schema)
-        return Member.objects.all()
+        """Members are tenant-specific (in tenant schema); members see only themselves."""
+        if is_church_staff(self.request.user):
+            return Member.objects.all()
+        return Member.objects.filter(user=self.request.user)
+
+    @action(detail=False, methods=['get'])
+    def me(self, request):
+        """
+        The signed-in person's own member record.
+
+        GET /api/v1/members/me/  ->  member detail, or 404 if this login has no member record.
+        """
+        member = member_for(request.user)
+        if member is None:
+            return Response({
+                'success': False,
+                'error': 'No member record is linked to this account.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        return Response(MemberDetailSerializer(member, context=self.get_serializer_context()).data)
     
     @action(detail=False, methods=['get'])
     def export_csv(self, request):

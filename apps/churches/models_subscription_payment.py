@@ -21,15 +21,8 @@ class SubscriptionPayment(models.Model):
     currency = models.CharField(max_length=3, default='GHS')
     
     # Plan Information
-    plan = models.CharField(
-        max_length=20,
-        choices=[
-            ('basic', 'Basic'),
-            ('standard', 'Standard'),
-            ('premium', 'Premium'),
-            ('enterprise', 'Enterprise'),
-        ]
-    )
+    # A Plan.code. Plans live in the database, so this is not a fixed choice list.
+    plan = models.CharField(max_length=20)
     duration = models.CharField(
         max_length=20,
         choices=[
@@ -65,6 +58,24 @@ class SubscriptionPayment(models.Model):
     subscription_start_date = models.DateTimeField(null=True, blank=True)
     subscription_end_date = models.DateTimeField(null=True, blank=True)
     
+    # How the money arrived. Paystack payments are recorded automatically;
+    # the rest are recorded by a platform admin.
+    payment_method = models.CharField(
+        max_length=20, default='paystack',
+        choices=[
+            ('paystack', 'Paystack'),
+            ('mobile_money', 'Mobile Money'),
+            ('bank_transfer', 'Bank transfer'),
+            ('cash', 'Cash'),
+            ('other', 'Other'),
+        ],
+    )
+    recorded_by = models.ForeignKey(
+        'authentication.User', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='recorded_subscription_payments',
+    )
+    note = models.TextField(blank=True)
+
     # User Information (who initiated payment)
     user_email = models.EmailField()
     user_name = models.CharField(max_length=255, blank=True)
@@ -94,31 +105,8 @@ class SubscriptionPayment(models.Model):
         self.save(update_fields=['status', 'completed_at', 'updated_at'])
     
     def activate_subscription(self):
-        """Activate subscription after successful payment."""
-        from django.utils import timezone
-        from datetime import timedelta
-        
-        if self.subscription_activated:
-            return
-        
-        now = timezone.now()
-        if self.duration == 'yearly':
-            subscription_end = now + timedelta(days=365)
-        else:
-            subscription_end = now + timedelta(days=30)
-        
-        # Update church subscription
-        self.church.plan = self.plan
-        self.church.subscription_status = 'active'
-        self.church.subscription_start_date = now
-        self.church.subscription_end_date = subscription_end
-        self.church.trial_end_date = None  # Clear trial if upgrading
-        self.church.save(update_fields=['plan', 'subscription_status', 'subscription_start_date', 'subscription_end_date', 'trial_end_date'])
-        
-        # Update payment record
-        self.subscription_activated = True
-        self.subscription_start_date = now
-        self.subscription_end_date = subscription_end
-        self.save(update_fields=['subscription_activated', 'subscription_start_date', 'subscription_end_date', 'updated_at'])
+        """Give the church this payment's paid period (idempotent)."""
+        from .subscriptions import activate_paid_period
 
-
+        activate_paid_period(self.pk)
+        self.refresh_from_db()

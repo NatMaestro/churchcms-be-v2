@@ -33,7 +33,9 @@ class SecurityHeadersMiddleware:
                 "style-src 'self' 'unsafe-inline'; "  # React/Tailwind requires unsafe-inline
                 "img-src 'self' data: https:; "
                 "font-src 'self' data:; "
-                "connect-src 'self' https://api.paystack.co https://api.faithflow360.com; "  # API endpoints
+                "connect-src 'self' https://api.paystack.co "
+                + ' '.join(f'https://api.{domain}' for domain in settings.ACCEPTED_PLATFORM_DOMAINS)
+                + "; "  # API endpoints
                 "frame-src https://js.paystack.co; "  # Paystack iframe
                 "object-src 'none'; "
                 "base-uri 'self'; "

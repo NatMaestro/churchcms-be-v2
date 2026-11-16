@@ -8,8 +8,13 @@ from django.utils import timezone
 from rest_framework import status
 from datetime import timedelta
 import logging
+import re
 
 logger = logging.getLogger(__name__)
+
+
+# Read-only billing information an expired church needs in order to renew.
+BILLING_INFO_PATH = re.compile(r'^/api/v1/churches/\d+/(subscription_status|subscription-payments)/$')
 
 
 class SubscriptionMiddleware:
@@ -36,12 +41,20 @@ class SubscriptionMiddleware:
             '/api/v1/auth/forgot-password/',
             '/api/v1/auth/reset-password/',
             '/api/v1/churches/subscription-payment/webhook/',  # Paystack webhook (no tenant needed)
+            # An expired church must still be able to pay to renew.
+            '/api/v1/churches/subscription-payment/initialize/',
+            '/api/v1/churches/subscription-payment/verify/',
+            '/api/v1/churches/subscription-payment/callback/',
+            '/api/v1/plans/',
+            '/api/v1/demo-requests/',
+            '/api/v1/site-settings/',
             '/health/',
             '/api/docs/',
             '/api/schema/',
         ]
         
-        is_public_route = any(request.path.startswith(path) for path in public_paths)
+        is_public_route = (any(request.path.startswith(path) for path in public_paths)
+                           or BILLING_INFO_PATH.match(request.path) is not None)
         
         # Skip subscription check for public routes
         if is_public_route:
@@ -58,18 +71,6 @@ class SubscriptionMiddleware:
         if getattr(tenant, 'bypass_subscription_check', False):
             logger.info(f'Subscription check bypassed for church: {tenant.name} (ID: {tenant.id})')
             # Still add subscription info but mark as bypassed
-            request.subscription_status = {
-                'status': 'bypassed',
-                'can_access': True,
-                'error': None,
-                'days_remaining': None,
-                'bypassed': True,
-            }
-            return self.get_response(request)
-        
-        # Bypass for apostolic church (testing/development)
-        if hasattr(tenant, 'subdomain') and tenant.subdomain in ['apostolic', 'apostolicchurch']:
-            logger.info(f'Subscription check bypassed for apostolic church: {tenant.name}')
             request.subscription_status = {
                 'status': 'bypassed',
                 'can_access': True,
@@ -123,7 +124,7 @@ class SubscriptionMiddleware:
                 return {
                     'status': 'trial_expired',
                     'can_access': False,
-                    'error': 'Your free trial has expired. Please upgrade to continue using FaithFlows.',
+                    'error': 'Your free trial has expired. Please upgrade to continue.',
                     'days_remaining': 0,
                 }
             
@@ -145,7 +146,7 @@ class SubscriptionMiddleware:
                 return {
                     'status': 'subscription_expired',
                     'can_access': False,
-                    'error': 'Your subscription has expired. Please renew to continue using FaithFlows.',
+                    'error': 'Your subscription has expired. Please renew to continue.',
                     'days_remaining': 0,
                 }
             

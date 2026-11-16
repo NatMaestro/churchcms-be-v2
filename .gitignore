@@ -37,6 +37,7 @@ mediafiles/
 .env
 .env.local
 .env.production
+.env.render
 
 # IDE
 .vscode/

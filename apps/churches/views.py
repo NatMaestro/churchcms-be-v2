@@ -7,7 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from .models import Church, Domain
-from .serializers import ChurchSerializer, ChurchDetailSerializer, DomainSerializer
+from .serializers import ChurchSerializer, ChurchDetailSerializer, DomainSerializer, PublicChurchSerializer
 from core.permissions import IsSuperAdmin, IsChurchAdmin
 
 
@@ -40,7 +40,9 @@ class ChurchViewSet(viewsets.ModelViewSet):
         Get church by subdomain.
         Public endpoint for subdomain resolution.
         
-        GET /api/v1/churches/by-subdomain/?subdomain=olamchurch
+        GET /api/v1/churches/by_subdomain/?subdomain=olamchurch
+
+        Unauthenticated, so it returns only the public profile.
         """
         subdomain = request.query_params.get('subdomain')
         
@@ -52,7 +54,7 @@ class ChurchViewSet(viewsets.ModelViewSet):
         
         try:
             church = Church.objects.get(subdomain=subdomain, is_active=True)
-            serializer = ChurchDetailSerializer(church)
+            serializer = PublicChurchSerializer(church)
             
             return Response({
                 'success': True,
@@ -255,8 +257,12 @@ class ChurchViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='upgrade-subscription', url_name='upgrade-subscription')
     def upgrade_subscription(self, request, pk=None):
         """
-        Upgrade church subscription to a paid plan.
-        
+        Manually set a church's paid plan, without payment.
+
+        Platform superadmins only (e.g. to comp a church). Church admins used to
+        be allowed, which let any church give itself a paid plan for free; they
+        must go through the Paystack payment flow instead.
+
         POST /api/v1/churches/:id/upgrade-subscription/
         Body: {
             "plan": "basic|standard|premium|enterprise",
@@ -265,17 +271,15 @@ class ChurchViewSet(viewsets.ModelViewSet):
         """
         from django.utils import timezone
         from datetime import timedelta
-        
-        church = self.get_object()
-        
-        # Check permissions
-        if not (request.user.is_superadmin or 
-                (request.user.church and request.user.church.id == church.id and request.user.is_church_admin)):
+
+        if not request.user.is_superadmin:
             return Response({
                 'success': False,
                 'error': 'Permission denied'
             }, status=status.HTTP_403_FORBIDDEN)
-        
+
+        church = self.get_object()
+
         plan = request.data.get('plan')
         duration = request.data.get('duration', 'monthly')
         

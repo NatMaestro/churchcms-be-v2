@@ -1,0 +1,14 @@
+# Test modules enforced by CI (.github/workflows/ci.yml), one per line.
+# The older modules in tests/ were already failing before CI existed; add each
+# one here once it passes. Never remove a module to make CI green.
+tests.test_settings_output
+tests.test_password_reset
+tests.test_user_permissions
+tests.test_tenant_binding
+tests.test_subscription_webhook
+tests.test_locked_down_endpoints
+tests.test_logout_revocation
+tests.test_member_request_submit
+tests.test_member_invites
+tests.test_church_website_content
+tests.test_church_lookup

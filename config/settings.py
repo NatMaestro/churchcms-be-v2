@@ -44,6 +44,7 @@ SHARED_APPS = [
     # Third-party apps
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',  # Required by BLACKLIST_AFTER_ROTATION and logout
     'corsheaders',
     'drf_spectacular',
     'django_filters',
@@ -238,6 +239,8 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/hour',
         'user': '1000/hour',
+        'member_request_submit': '10/hour',
+        'church_website_content': '300/hour',
     }
 }
 
@@ -319,6 +322,8 @@ EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@faithflows.com')
+# Seconds before an SMTP connection gives up, so a slow mail server cannot hang a request.
+EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', 10))
 
 # Celery Configuration (for async tasks)
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/1')
@@ -424,5 +429,3 @@ RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE', 60))
 # File Upload Settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
-
-print(f"Database URL: {DATABASES}")

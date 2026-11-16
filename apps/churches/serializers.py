@@ -38,6 +38,19 @@ class ChurchSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'schema_name', 'created_at', 'updated_at']
 
 
+class PublicChurchSerializer(serializers.ModelSerializer):
+    """What anyone may see about a church, without logging in.
+
+    Never add settings, subscription or schema fields here: this backs public,
+    unauthenticated endpoints.
+    """
+
+    class Meta:
+        model = Church
+        fields = ['name', 'subdomain', 'denomination', 'address', 'phone', 'email', 'website']
+        read_only_fields = fields
+
+
 class ChurchDetailSerializer(ChurchSerializer):
     """Detailed church serializer with additional computed fields."""
     

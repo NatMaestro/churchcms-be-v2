@@ -8,6 +8,8 @@ from apps.churches.models_plan import Plan
 from apps.churches.models_subscription_payment import SubscriptionPayment
 from apps.churches.subscriptions import MANUAL_PAYMENT_METHODS, MAX_TRIAL_EXTENSION_DAYS, account_state
 
+from .models import DemoRequest
+
 MAX_PLAN_FEATURES = 20
 MAX_FEATURE_LENGTH = 120
 
@@ -91,3 +93,16 @@ class ExtendTrialSerializer(serializers.Serializer):
 
 class SetFlagSerializer(serializers.Serializer):
     enabled = serializers.BooleanField()
+
+
+class PlatformDemoRequestSerializer(serializers.ModelSerializer):
+    church_subdomain = serializers.CharField(source='church.subdomain', read_only=True, default=None)
+
+    class Meta:
+        model = DemoRequest
+        fields = ['id', 'name', 'role', 'phone', 'email', 'church_name', 'congregation_size',
+                  'preferred_time', 'message', 'status', 'notes', 'church', 'church_subdomain',
+                  'created_at', 'updated_at']
+        # What the person typed is kept as typed; admins change only the follow-up fields.
+        read_only_fields = ['id', 'name', 'role', 'phone', 'email', 'church_name', 'congregation_size',
+                            'preferred_time', 'message', 'created_at', 'updated_at']

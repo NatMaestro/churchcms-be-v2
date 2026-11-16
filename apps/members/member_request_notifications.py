@@ -46,7 +46,7 @@ def email_admins_of_new_request(church, member_request):
                 message=(
                     f"Hello {admin.name},\n\n"
                     f"{message}\n\n"
-                    f"Review it in FaithFlow:\n{review_link}\n"
+                    f"Review it in {settings.PLATFORM_NAME}:\n{review_link}\n"
                 ),
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[admin.email],
@@ -69,7 +69,7 @@ def send_member_invite(user, church):
     invite_link = frontend_url(f'/reset-password?token={token}&invite=1', church)
     try:
         send_mail(
-            subject=f'Activate your FaithFlow account for {church.name}',
+            subject=f'Activate your {settings.PLATFORM_NAME} account for {church.name}',
             message=(
                 f"Hello {user.name},\n\n"
                 f"Your membership of {church.name} has been confirmed. "

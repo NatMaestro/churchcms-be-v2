@@ -424,10 +424,10 @@ class ForgotPasswordView(APIView):
         reset_link = frontend_url(f'/reset-password?token={token}', user.church)
         try:
             send_mail(
-                subject='Reset your FaithFlow password',
+                subject=f'Reset your {settings.PLATFORM_NAME} password',
                 message=(
                     f"Hello {user.name},\n\n"
-                    "We received a request to reset your FaithFlow password. "
+                    f"We received a request to reset your {settings.PLATFORM_NAME} password. "
                     f"Use this link within {PASSWORD_RESET_TOKEN_LIFETIME_HOURS} hour(s):\n\n"
                     f"{reset_link}\n\n"
                     "If you did not ask for this, you can ignore this email."

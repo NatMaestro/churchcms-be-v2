@@ -19,3 +19,4 @@ tests.test_demo_requests
 tests.test_platform_create_church
 tests.test_church_billing
 tests.test_platform_settings
+tests.test_platform_domain

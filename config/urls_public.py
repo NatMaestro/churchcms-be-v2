@@ -17,7 +17,7 @@ from apps.churches.views_payment import paystack_webhook
 def api_root(request):
     """Root API endpoint - returns available endpoints."""
     return JsonResponse({
-        'message': 'FaithFlow Studio API',
+        'message': 'Flocktend API',
         'version': 'v1',
         'endpoints': {
             'auth': '/api/v1/auth/',

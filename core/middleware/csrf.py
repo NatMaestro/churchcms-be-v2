@@ -1,5 +1,6 @@
 """
-Custom CSRF middleware that dynamically allows subdomains of faithflow360.com.
+Custom CSRF middleware that dynamically allows subdomains of the platform domain
+(settings.ACCEPTED_PLATFORM_DOMAINS).
 This extends Django's CSRF middleware to support wildcard subdomain validation.
 """
 import re
@@ -14,14 +15,12 @@ class DynamicCSRFMiddleware(CsrfViewMiddleware, MiddlewareMixin):
     
     Allows:
     - Origins explicitly listed in CSRF_TRUSTED_ORIGINS
-    - Any subdomain of faithflow360.com (e.g., apostolicchurchghana.faithflow360.com)
+    - Any subdomain of an accepted platform domain (e.g., gracechapel.flocktend.com)
     - Localhost origins for development
     """
     
-    # Patterns for allowed subdomains
-    ALLOWED_SUBDOMAIN_PATTERNS = [
-        r'^https://[\w-]+\.faithflow360\.com$',  # Production subdomains
-        r'^https://www\.faithflow360\.com$',     # www subdomain
+    # Patterns for allowed subdomains (production ones come from the platform domains)
+    LOCAL_SUBDOMAIN_PATTERNS = [
         r'^https://[\w-]+\.localhost:\d+$',      # Local HTTPS dev subdomains
         r'^http://[\w-]+\.localhost:\d+$',       # Local HTTP dev subdomains
         r'^https://localhost:\d+$',               # Local HTTPS dev
@@ -40,7 +39,9 @@ class DynamicCSRFMiddleware(CsrfViewMiddleware, MiddlewareMixin):
             return True
         
         # Check against subdomain patterns
-        for pattern in self.ALLOWED_SUBDOMAIN_PATTERNS:
+        production_patterns = [rf'^https://[\w-]+\.{re.escape(domain)}$'
+                               for domain in settings.ACCEPTED_PLATFORM_DOMAINS]
+        for pattern in production_patterns + self.LOCAL_SUBDOMAIN_PATTERNS:
             if re.match(pattern, origin):
                 return True
         

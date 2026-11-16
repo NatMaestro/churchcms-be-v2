@@ -1,6 +1,6 @@
 """
 Public, read-only platform settings for the website and church Billing page:
-how churches contact Faithflow360. Edited in the platform admin.
+how churches contact Flocktend. Edited in the platform admin.
 """
 from rest_framework import permissions
 from rest_framework.decorators import (api_view, authentication_classes, permission_classes,

@@ -24,7 +24,6 @@ RESERVED_SUBDOMAINS = frozenset({
     'www', 'api', 'app', 'admin', 'superadmin', 'platform', 'public', 'mail', 'email',
     'static', 'media', 'assets', 'cdn', 'help', 'support', 'status', 'blog', 'docs',
 })
-PRODUCTION_BASE_DOMAIN = 'faithflow360.com'
 LOCAL_BASE_DOMAIN = 'localhost'
 ADMIN_INVITE_LIFETIME_HOURS = 72
 
@@ -49,7 +48,7 @@ def create_church_domains(church):
 
     Domain.objects.create(domain=f'{church.subdomain}.{LOCAL_BASE_DOMAIN}', tenant=church, is_primary=True)
     if not settings.DEBUG:
-        Domain.objects.create(domain=f'{church.subdomain}.{PRODUCTION_BASE_DOMAIN}', tenant=church,
+        Domain.objects.create(domain=f'{church.subdomain}.{settings.PLATFORM_DOMAIN}', tenant=church,
                               is_primary=False)
 
 
@@ -92,10 +91,10 @@ def send_church_admin_invite(admin, church):
     link = frontend_url(f'/reset-password?token={token}&invite=1', church)
     try:
         send_mail(
-            subject=f'{church.name} is ready on FaithFlow',
+            subject=f'{church.name} is ready on {settings.PLATFORM_NAME}',
             message=(
                 f"Hello {admin.name},\n\n"
-                f"Your church, {church.name}, is set up on FaithFlow and your free trial has started.\n\n"
+                f"Your church, {church.name}, is set up on {settings.PLATFORM_NAME} and your free trial has started.\n\n"
                 "Set your password to sign in as the church administrator. "
                 f"This link works once and expires in {ADMIN_INVITE_LIFETIME_HOURS} hours:\n\n"
                 f"{link}\n\n"

@@ -50,7 +50,7 @@ def email_platform_admins(demo_request):
                 subject=f'Demo request from {demo_request.church_name}',
                 message=(
                     f"Hello {admin.name},\n\n"
-                    f"{demo_request.name} from {demo_request.church_name} would like a FaithFlow demo.\n\n"
+                    f"{demo_request.name} from {demo_request.church_name} would like a {settings.PLATFORM_NAME} demo.\n\n"
                     f"See their details and follow up:\n{link}\n"
                 ),
                 from_email=settings.DEFAULT_FROM_EMAIL,

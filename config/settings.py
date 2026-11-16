@@ -4,6 +4,7 @@ Multi-tenant church management system.
 """
 
 import os
+import re
 from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
@@ -25,7 +26,15 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-development-key-change-in-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,.localhost,.lvh.me,.faithflows.com,*.faithflows.com').split(',')
+# Product name and the domain churches use: <subdomain>.PLATFORM_DOMAIN.
+PLATFORM_NAME = 'Flocktend'
+PLATFORM_DOMAIN = os.getenv('PLATFORM_DOMAIN', 'flocktend.com')
+# Domains still accepted while visitors move over (faithflow360.com redirects to
+# PLATFORM_DOMAIN). Set LEGACY_PLATFORM_DOMAINS to an empty string to stop accepting them.
+LEGACY_PLATFORM_DOMAINS = [d for d in os.getenv('LEGACY_PLATFORM_DOMAINS', 'faithflow360.com').split(',') if d]
+ACCEPTED_PLATFORM_DOMAINS = [PLATFORM_DOMAIN] + LEGACY_PLATFORM_DOMAINS
+
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,.localhost,.lvh.me').split(',')
 
 # Tenant Settings
 TENANT_MODEL = "churches.Church"
@@ -268,14 +277,14 @@ SIMPLE_JWT = {
 # Cookie / CSRF settings for browser-based auth
 ACCESS_TOKEN_COOKIE_NAME = os.getenv('ACCESS_TOKEN_COOKIE_NAME', 'ff_access')
 REFRESH_TOKEN_COOKIE_NAME = os.getenv('REFRESH_TOKEN_COOKIE_NAME', 'ff_refresh')
-COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', None)  # e.g., ".faithflow360.com" in production
+COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN', None)  # e.g., ".flocktend.com" in production
 SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'Lax')
 CSRF_COOKIE_SAMESITE = os.getenv('CSRF_COOKIE_SAMESITE', 'Lax')
 # CSRF_TRUSTED_ORIGINS - Base domains only (subdomains handled dynamically by DynamicCSRFMiddleware)
-# The middleware automatically allows all *.faithflow360.com subdomains
+# The middleware automatically allows all subdomains of ACCEPTED_PLATFORM_DOMAINS
 CSRF_TRUSTED_ORIGINS = os.getenv(
     'CSRF_TRUSTED_ORIGINS',
-    'https://faithflow360.com,https://www.faithflow360.com'
+    ','.join(f'https://{d},https://www.{d}' for d in ACCEPTED_PLATFORM_DOMAINS)
 ).split(',')
 
 # CORS Settings
@@ -290,8 +299,9 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://\w+\.localhost:\d+$",   # Match HTTP subdomain.localhost:port
     r"^https://localhost:\d+$",       # Match HTTPS localhost:port
     r"^http://localhost:\d+$",       # Match HTTP localhost:port
-    r"^https://\w+\.faithflow360\.com$",  # Match subdomain.faithflow360.com (production)
-    r"^https://www\.faithflow360\.com$",  # Match www.faithflow360.com (production)
+] + [
+    # Production: https://<subdomain>.<platform domain> and https://www.<platform domain>
+    rf"^https://[\w-]+\.{re.escape(domain)}$" for domain in ACCEPTED_PLATFORM_DOMAINS
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -310,7 +320,7 @@ CORS_ALLOW_HEADERS = [
 
 # API Documentation (Spectacular)
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'FaithFlow Studio API',
+    'TITLE': 'Flocktend API',
     'DESCRIPTION': 'Multi-tenant church management system API',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
@@ -325,7 +335,7 @@ EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@faithflows.com')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@flocktend.com')
 # Seconds before an SMTP connection gives up, so a slow mail server cannot hang a request.
 EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', 10))
 

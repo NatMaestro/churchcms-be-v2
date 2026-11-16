@@ -16,16 +16,13 @@ from django.core.mail import send_mail
 
 from apps.authentication.models import User
 from apps.authentication.tokens import issue_password_token
+from core.frontend_links import frontend_url
 
 logger = logging.getLogger(__name__)
 
 INVITE_LIFETIME_HOURS = 72
 INVITE_LIFETIME = timedelta(hours=INVITE_LIFETIME_HOURS)
 MEMBER_REQUESTS_ADMIN_PATH = '/admin/member-requests'
-
-
-def _frontend_url(path):
-    return f"{settings.FRONTEND_URL.rstrip('/')}{path}"
 
 
 def email_admins_of_new_request(church, member_request):
@@ -41,7 +38,7 @@ def email_admins_of_new_request(church, member_request):
         return
 
     message = f'{member_request.name} has applied to join {church.name}.'
-    review_link = _frontend_url(MEMBER_REQUESTS_ADMIN_PATH)
+    review_link = frontend_url(MEMBER_REQUESTS_ADMIN_PATH, church)
     for admin in admins:
         try:
             send_mail(
@@ -69,7 +66,7 @@ def send_member_invite(user, church):
     Returns True if the email was handed to the mail server.
     """
     token = issue_password_token(user, INVITE_LIFETIME)
-    invite_link = _frontend_url(f'/reset-password?token={token}&invite=1')
+    invite_link = frontend_url(f'/reset-password?token={token}&invite=1', church)
     try:
         send_mail(
             subject=f'Activate your FaithFlow account for {church.name}',

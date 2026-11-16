@@ -25,6 +25,7 @@ from .serializers import (
 from .models import PasswordResetToken
 from .tokens import issue_password_token
 from apps.churches.models import Church, Domain
+from core.frontend_links import frontend_url
 from core.permissions import IsChurchAdminOrSuperAdmin
 from django.core.mail import send_mail
 from django.utils import timezone
@@ -428,7 +429,8 @@ class ForgotPasswordView(APIView):
         """Create a fresh reset token for `user` and email them the reset link."""
         token = issue_password_token(user, PASSWORD_RESET_TOKEN_LIFETIME)
 
-        reset_link = f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={token}"
+        # Opens on the user's church site; platform admins get the main site.
+        reset_link = frontend_url(f'/reset-password?token={token}', user.church)
         try:
             send_mail(
                 subject='Reset your FaithFlow password',

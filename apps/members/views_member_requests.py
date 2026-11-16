@@ -114,7 +114,7 @@ class MemberRequestViewSet(viewsets.ModelViewSet):
         if User.objects.filter(email__iexact=member_request.email).exists():
             return Response({
                 'success': False,
-                'error': 'This email already has a FaithFlow account, so a new member login cannot be created for it.'
+                'error': 'This email already has an account, so a new member login cannot be created for it.'
             }, status=status.HTTP_409_CONFLICT)
 
         try:

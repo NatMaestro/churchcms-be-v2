@@ -143,13 +143,13 @@ def initialize_subscription_payment(request):
         # Initialize variables to avoid UnboundLocalError
         callback_url = None
         scheme = 'https'
-        base_domain = 'faithflow360.com'
+        base_domain = settings.PLATFORM_DOMAIN
         port = None
         
         try:
             from urllib.parse import urlparse
             
-            # Get FRONTEND_URL from settings (e.g., https://faithflow360.com or http://localhost:5173)
+            # Get FRONTEND_URL from settings (e.g., https://www.flocktend.com or http://localhost:5173)
             frontend_base = getattr(settings, 'FRONTEND_URL', 'http://localhost:8080')
             parsed_base = urlparse(frontend_base)
             
@@ -176,7 +176,7 @@ def initialize_subscription_payment(request):
             # Determine the base domain and scheme from headers if available
             # Filter out API domains - we only want frontend domains
             if origin and 'api.' not in origin.lower():
-                # Extract from Origin header (e.g., https://apostolic.faithflow360.com or http://calvary.localhost:8080)
+                # Extract from Origin header (e.g., https://gracechapel.flocktend.com or http://calvary.localhost:8080)
                 parsed = urlparse(origin)
                 scheme = parsed.scheme
                 netloc_no_port = parsed.netloc.split(':')[0]  # Remove port
@@ -189,7 +189,7 @@ def initialize_subscription_payment(request):
                     port = parsed.port if parsed.port else 8080
                 elif len(domain_parts) >= 2:
                     # Production: subdomain.domain.com -> domain.com
-                    # Extract last two parts (e.g., faithflow360.com from apostolic.faithflow360.com)
+                    # Extract last two parts (e.g., flocktend.com from gracechapel.flocktend.com)
                     base_domain = '.'.join(domain_parts[-2:])
                     port = None  # No port for production
                 else:
@@ -209,7 +209,7 @@ def initialize_subscription_payment(request):
                     port = parsed.port if parsed.port else 8080
                 elif len(domain_parts) >= 2:
                     # Production: subdomain.domain.com -> domain.com
-                    # Extract last two parts (e.g., faithflow360.com from apostolic.faithflow360.com)
+                    # Extract last two parts (e.g., flocktend.com from gracechapel.flocktend.com)
                     base_domain = '.'.join(domain_parts[-2:])
                     port = None  # No port for production
                 else:
@@ -226,7 +226,7 @@ def initialize_subscription_payment(request):
                     port_str = f":{port}" if port else f":{default_port}"
                     callback_url = f"{scheme}://{church.subdomain}.{base_domain}{port_str}/subscription/payment/callback"
                 else:
-                    # Production: https://{subdomain}.faithflow360.com
+                    # Production: https://{subdomain}.<platform domain>
                     callback_url = f"{scheme}://{church.subdomain}.{base_domain}/subscription/payment/callback"
             else:
                 # No subdomain, use base URL
@@ -241,7 +241,7 @@ def initialize_subscription_payment(request):
             logger.error(f"❌ Error constructing callback URL: {str(e)}", exc_info=True)
             # Fallback to a simple callback URL
             if church.subdomain:
-                callback_url = f"https://{church.subdomain}.faithflow360.com/subscription/payment/callback"
+                callback_url = f"https://{church.subdomain}.{settings.PLATFORM_DOMAIN}/subscription/payment/callback"
             else:
                 frontend_fallback = getattr(settings, 'FRONTEND_URL', 'http://localhost:8080')
                 callback_url = frontend_fallback.rstrip('/') + '/subscription/payment/callback'
@@ -250,7 +250,7 @@ def initialize_subscription_payment(request):
         # Ensure callback_url is set (safety check)
         if not callback_url:
             if church.subdomain:
-                callback_url = f"https://{church.subdomain}.faithflow360.com/subscription/payment/callback"
+                callback_url = f"https://{church.subdomain}.{settings.PLATFORM_DOMAIN}/subscription/payment/callback"
             else:
                 frontend_fallback = getattr(settings, 'FRONTEND_URL', 'http://localhost:8080')
                 callback_url = frontend_fallback.rstrip('/') + '/subscription/payment/callback'

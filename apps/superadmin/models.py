@@ -1,5 +1,5 @@
 """
-Demo requests: churches asking to see FaithFlow before signing up.
+Demo requests: churches asking to see Flocktend before signing up.
 
 Personal data. What is stored, who sees it and how long it is kept:
 - Stored: only the fields below, as typed on the landing page form.

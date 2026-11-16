@@ -124,7 +124,7 @@ class SubscriptionMiddleware:
                 return {
                     'status': 'trial_expired',
                     'can_access': False,
-                    'error': 'Your free trial has expired. Please upgrade to continue using FaithFlows.',
+                    'error': 'Your free trial has expired. Please upgrade to continue.',
                     'days_remaining': 0,
                 }
             
@@ -146,7 +146,7 @@ class SubscriptionMiddleware:
                 return {
                     'status': 'subscription_expired',
                     'can_access': False,
-                    'error': 'Your subscription has expired. Please renew to continue using FaithFlows.',
+                    'error': 'Your subscription has expired. Please renew to continue.',
                     'days_remaining': 0,
                 }
             

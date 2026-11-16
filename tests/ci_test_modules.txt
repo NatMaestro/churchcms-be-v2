@@ -22,3 +22,4 @@ tests.test_platform_settings
 tests.test_platform_domain
 tests.test_member_data_scoping
 tests.test_church_notifications
+tests.test_prayer_requests

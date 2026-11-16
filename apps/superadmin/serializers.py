@@ -1,6 +1,7 @@
 """
 Serializers for the platform admin API (platform superadmins only).
 """
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from apps.churches.models import Church
@@ -8,7 +9,7 @@ from apps.churches.models_plan import Plan
 from apps.churches.models_subscription_payment import SubscriptionPayment
 from apps.churches.subscriptions import MANUAL_PAYMENT_METHODS, MAX_TRIAL_EXTENSION_DAYS, account_state
 
-from .models import DemoRequest
+from .models import WHATSAPP_NUMBER_VALIDATOR, DemoRequest, PlatformSettings
 
 MAX_PLAN_FEATURES = 20
 MAX_FEATURE_LENGTH = 120
@@ -116,3 +117,27 @@ class CreateChurchSerializer(serializers.Serializer):
     admin_email = serializers.EmailField()
     demo_request = serializers.PrimaryKeyRelatedField(queryset=DemoRequest.objects.all(), required=False,
                                                       allow_null=True)
+
+
+class PlatformSettingsSerializer(serializers.ModelSerializer):
+    # Declared here (not from the model) so pasted forms like "+233 20 123 4567"
+    # are cleaned to digits before the format check below.
+    whatsapp_number = serializers.CharField(max_length=30, allow_blank=True, required=False)
+    updated_by_name = serializers.CharField(source='updated_by.name', read_only=True, default=None)
+
+    class Meta:
+        model = PlatformSettings
+        fields = ['whatsapp_number', 'contact_email', 'updated_at', 'updated_by_name']
+        read_only_fields = ['updated_at', 'updated_by_name']
+
+    def validate_whatsapp_number(self, value):
+        # Accept what people paste ("+233 20 123 4567") and store digits only.
+        digits = ''.join(character for character in value if character.isdigit())
+        if digits:
+            try:
+                WHATSAPP_NUMBER_VALIDATOR(digits)
+            except DjangoValidationError as error:
+                raise serializers.ValidationError(error.messages)
+        elif value.strip():
+            raise serializers.ValidationError('Use the international format with digits only, e.g. 233201234567.')
+        return digits

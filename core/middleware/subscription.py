@@ -47,6 +47,7 @@ class SubscriptionMiddleware:
             '/api/v1/churches/subscription-payment/callback/',
             '/api/v1/plans/',
             '/api/v1/demo-requests/',
+            '/api/v1/site-settings/',
             '/health/',
             '/api/docs/',
             '/api/schema/',

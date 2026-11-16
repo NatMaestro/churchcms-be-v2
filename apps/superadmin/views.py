@@ -19,9 +19,9 @@ from apps.churches.models_plan import PLAN_CURRENCY, Plan
 from apps.churches.models_subscription_payment import SubscriptionPayment
 from core.permissions import IsSuperAdmin
 
-from .models import DemoRequest
+from .models import DemoRequest, PlatformSettings
 from .serializers import (CreateChurchSerializer, ExtendTrialSerializer, PlatformChurchSerializer,
-                          PlatformDemoRequestSerializer,
+                          PlatformDemoRequestSerializer, PlatformSettingsSerializer,
                           PlatformPaymentSerializer, PlatformPlanSerializer, RecordPaymentSerializer,
                           SetFlagSerializer)
 
@@ -266,3 +266,23 @@ class PlatformDemoRequestViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixi
     def perform_destroy(self, instance):
         log_action(self.request, 'delete_demo_request', demo_request_id=instance.pk)
         instance.delete()
+
+
+class PlatformSettingsView(APIView):
+    """
+    GET/PATCH /api/v1/platform/settings/: the WhatsApp number and contact email
+    shown on the website and church Billing page. Every change is logged.
+    """
+
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        return Response(PlatformSettingsSerializer(PlatformSettings.load()).data)
+
+    def patch(self, request):
+        current = PlatformSettings.load()
+        form = PlatformSettingsSerializer(current, data=request.data, partial=True)
+        form.is_valid(raise_exception=True)
+        saved = form.save(updated_by=request.user)
+        log_action(request, 'update_platform_settings', fields=sorted(form.validated_data))
+        return Response(PlatformSettingsSerializer(saved).data)

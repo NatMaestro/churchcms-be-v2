@@ -5,7 +5,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (PlatformChurchViewSet, PlatformDemoRequestViewSet, PlatformOverviewView,
-                    PlatformPaymentViewSet, PlatformPlanViewSet)
+                    PlatformPaymentViewSet, PlatformPlanViewSet, PlatformSettingsView)
 
 router = DefaultRouter()
 router.register(r'churches', PlatformChurchViewSet, basename='platform-church')
@@ -15,5 +15,6 @@ router.register(r'demo-requests', PlatformDemoRequestViewSet, basename='platform
 
 urlpatterns = [
     path('overview/', PlatformOverviewView.as_view(), name='platform-overview'),
+    path('settings/', PlatformSettingsView.as_view(), name='platform-settings'),
     path('', include(router.urls)),
 ]

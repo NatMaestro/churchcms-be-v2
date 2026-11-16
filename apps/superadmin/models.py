@@ -14,6 +14,7 @@ organisation; INTERNAL = written by platform admins.
 """
 from datetime import timedelta
 
+from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 
@@ -69,3 +70,36 @@ def purge_stale_demo_requests(now=None):
     stale = DemoRequest.objects.filter(updated_at__lt=cutoff).exclude(status__in=['trial', 'paying'])
     deleted, _ = stale.delete()
     return deleted
+
+
+WHATSAPP_NUMBER_VALIDATOR = RegexValidator(
+    r'^[1-9][0-9]{7,14}$',
+    'Use the international format with digits only, e.g. 233201234567.',
+)
+
+
+class PlatformSettings(models.Model):
+    """
+    Platform-wide settings a platform superadmin edits, shown on the public
+    website and the church Billing page. There is exactly one row (pk=1).
+    Business contact details only; nothing here identifies a private person.
+    """
+
+    SINGLETON_ID = 1
+
+    whatsapp_number = models.CharField(max_length=15, blank=True, validators=[WHATSAPP_NUMBER_VALIDATOR])
+    contact_email = models.EmailField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey('authentication.User', null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='+')
+
+    class Meta:
+        db_table = 'platform_settings'
+
+    def __str__(self):
+        return 'Platform settings'
+
+    @classmethod
+    def load(cls):
+        settings_row, _ = cls.objects.get_or_create(pk=cls.SINGLETON_ID)
+        return settings_row

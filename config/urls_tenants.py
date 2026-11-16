@@ -6,6 +6,7 @@ These URLs are available within each church's subdomain.
 from django.urls import path, include
 from apps.churches.views_plans import public_plans
 from apps.superadmin.demo_requests import submit_demo_request
+from apps.superadmin.site_settings import public_site_settings
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularRedocView,
@@ -25,6 +26,7 @@ urlpatterns = [
     path('api/v1/churches/', include('apps.churches.urls')),
     path('api/v1/plans/', public_plans, name='public-plans'),
     path('api/v1/demo-requests/', submit_demo_request, name='submit-demo-request'),
+    path('api/v1/site-settings/', public_site_settings, name='public-site-settings'),
 
     # Platform admin (platform superadmins only)
     path('api/v1/platform/', include('apps.superadmin.urls')),

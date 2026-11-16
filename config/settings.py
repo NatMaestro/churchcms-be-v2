@@ -54,6 +54,7 @@ SHARED_APPS = [
     # Shared apps (multi-tenant)
     'apps.churches',
     'apps.authentication',
+    'apps.superadmin',  # platform admin API (public schema)
 ]
 
 # Tenant Apps (isolated per tenant/church)

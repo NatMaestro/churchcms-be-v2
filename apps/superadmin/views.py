@@ -13,14 +13,15 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.churches import subscriptions
+from apps.churches import provisioning, subscriptions
 from apps.churches.models import Church
 from apps.churches.models_plan import PLAN_CURRENCY, Plan
 from apps.churches.models_subscription_payment import SubscriptionPayment
 from core.permissions import IsSuperAdmin
 
 from .models import DemoRequest
-from .serializers import (ExtendTrialSerializer, PlatformChurchSerializer, PlatformDemoRequestSerializer,
+from .serializers import (CreateChurchSerializer, ExtendTrialSerializer, PlatformChurchSerializer,
+                          PlatformDemoRequestSerializer,
                           PlatformPaymentSerializer, PlatformPlanSerializer, RecordPaymentSerializer,
                           SetFlagSerializer)
 
@@ -68,6 +69,9 @@ class PlatformChurchViewSet(viewsets.ReadOnlyModelViewSet):
     """
     /api/v1/platform/churches/            list (?search=, ?state=trial|trial_ended|paying|lapsed|free|suspended)
     /api/v1/platform/churches/:id/        detail, with recent payments
+    POST /api/v1/platform/churches/       create a church on a trial and invite its admin
+                                          {church_name, subdomain, denomination?, admin_name, admin_email, demo_request?}
+    POST :id/resend-invite/   new invite for admins who have never signed in
     POST :id/record-payment/  {plan, duration, method, reference, amount?, note?}
     POST :id/extend-trial/    {days}
     POST :id/suspend/         {enabled}
@@ -97,6 +101,39 @@ class PlatformChurchViewSet(viewsets.ReadOnlyModelViewSet):
             **self.get_serializer(church).data,
             'recent_payments': PlatformPaymentSerializer(payments, many=True).data,
         })
+
+    def create(self, request, *args, **kwargs):
+        form = CreateChurchSerializer(data=request.data)
+        form.is_valid(raise_exception=True)
+        data = form.validated_data
+        try:
+            church, admin = provisioning.create_church_with_admin(
+                church_name=data['church_name'], subdomain=data['subdomain'],
+                denomination=data.get('denomination', ''), admin_name=data['admin_name'],
+                admin_email=data['admin_email'])
+        except provisioning.ProvisioningError as error:
+            return Response({'error': str(error)}, status=status.HTTP_400_BAD_REQUEST)
+        demo_request = data.get('demo_request')
+        if demo_request is not None:
+            demo_request.church = church
+            demo_request.status = 'trial'
+            demo_request.save(update_fields=['church', 'status', 'updated_at'])
+        invite_sent = provisioning.send_church_admin_invite(admin, church)
+        log_action(request, 'create_church', church, admin_id=admin.pk, invite_sent=invite_sent,
+                   demo_request_id=getattr(demo_request, 'pk', None))
+        return Response({'church': self._church_response(church), 'invite_sent': invite_sent},
+                        status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='resend-invite')
+    def resend_invite(self, request, pk=None):
+        church = self.get_object()
+        admins = church.users.filter(role='admin', is_active=True, last_login__isnull=True)
+        sent = sum(provisioning.send_church_admin_invite(admin, church) for admin in admins)
+        log_action(request, 'resend_church_invite', church, sent=sent)
+        if not admins:
+            return Response({'error': 'Every admin of this church has already signed in.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        return Response({'sent': sent})
 
     def _church_response(self, church):
         church = self.get_queryset().get(pk=church.pk)

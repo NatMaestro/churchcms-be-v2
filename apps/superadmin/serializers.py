@@ -106,3 +106,13 @@ class PlatformDemoRequestSerializer(serializers.ModelSerializer):
         # What the person typed is kept as typed; admins change only the follow-up fields.
         read_only_fields = ['id', 'name', 'role', 'phone', 'email', 'church_name', 'congregation_size',
                             'preferred_time', 'message', 'created_at', 'updated_at']
+
+
+class CreateChurchSerializer(serializers.Serializer):
+    church_name = serializers.CharField(max_length=255)
+    subdomain = serializers.CharField(max_length=63)
+    denomination = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    admin_name = serializers.CharField(max_length=255)
+    admin_email = serializers.EmailField()
+    demo_request = serializers.PrimaryKeyRelatedField(queryset=DemoRequest.objects.all(), required=False,
+                                                      allow_null=True)

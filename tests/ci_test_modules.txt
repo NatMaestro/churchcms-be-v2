@@ -16,3 +16,4 @@ tests.test_frontend_links
 tests.test_subscription_engine
 tests.test_platform_admin
 tests.test_demo_requests
+tests.test_platform_create_church

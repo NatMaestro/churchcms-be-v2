@@ -19,8 +19,10 @@ from apps.churches.models_plan import PLAN_CURRENCY, Plan
 from apps.churches.models_subscription_payment import SubscriptionPayment
 from core.permissions import IsSuperAdmin
 
-from .serializers import (ExtendTrialSerializer, PlatformChurchSerializer, PlatformPaymentSerializer,
-                          PlatformPlanSerializer, RecordPaymentSerializer, SetFlagSerializer)
+from .models import DemoRequest
+from .serializers import (ExtendTrialSerializer, PlatformChurchSerializer, PlatformDemoRequestSerializer,
+                          PlatformPaymentSerializer, PlatformPlanSerializer, RecordPaymentSerializer,
+                          SetFlagSerializer)
 
 logger = logging.getLogger(__name__)
 
@@ -190,3 +192,40 @@ class PlatformPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         if payment_status:
             payments = payments.filter(status=payment_status)
         return payments
+
+
+class PlatformDemoRequestViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.UpdateModelMixin,
+                                 mixins.DestroyModelMixin, viewsets.GenericViewSet):
+    """
+    /api/v1/platform/demo-requests/        list (?status=new|contacted|demo_booked|trial|paying|lost)
+    /api/v1/platform/demo-requests/:id/    retrieve, PATCH {status, notes, church}, DELETE
+
+    Personal data: every read and change is logged with the admin's id.
+    """
+
+    permission_classes = [IsSuperAdmin]
+    serializer_class = PlatformDemoRequestSerializer
+
+    def get_queryset(self):
+        requests_ = DemoRequest.objects.select_related('church')
+        wanted = self.request.query_params.get('status')
+        if wanted:
+            requests_ = requests_.filter(status=wanted)
+        return requests_
+
+    def list(self, request, *args, **kwargs):
+        log_action(request, 'list_demo_requests', purpose='lead_follow_up')
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        log_action(request, 'view_demo_request', purpose='lead_follow_up', demo_request_id=kwargs.get('pk'))
+        return super().retrieve(request, *args, **kwargs)
+
+    def perform_update(self, serializer):
+        demo_request = serializer.save()
+        log_action(self.request, 'update_demo_request', demo_request_id=demo_request.pk,
+                   status=demo_request.status)
+
+    def perform_destroy(self, instance):
+        log_action(self.request, 'delete_demo_request', demo_request_id=instance.pk)
+        instance.delete()

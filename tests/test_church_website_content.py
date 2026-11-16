@@ -107,6 +107,15 @@ class ChurchWebsiteContentTests(TransactionTestCase):
         self.assertEqual(body['announcements'], [])
         self.assertEqual(body['ministries'], [])
 
+    def test_a_churchs_own_website_on_another_domain_can_read_the_feed(self):
+        """Browsers on the church's own domain (e.g. gracechapel.org) may read it, without cookies."""
+        client = APIClient()
+        for url in (content_url(TEST_SCHEMAS[0]), content_url('no-such-church')):
+            response = client.get(url, HTTP_ORIGIN='https://www.gracechapel-own-site.example')
+
+            self.assertEqual(response['Access-Control-Allow-Origin'], '*', url)
+            self.assertNotIn('Access-Control-Allow-Credentials', response, url)
+
     def test_only_events_marked_for_the_website_appear(self):
         self._event(self.church_a, 'Harvest Mass')
         self._event(self.church_a, 'Finance committee', show_on_website=False)

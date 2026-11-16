@@ -8,8 +8,13 @@ from django.utils import timezone
 from rest_framework import status
 from datetime import timedelta
 import logging
+import re
 
 logger = logging.getLogger(__name__)
+
+
+# Read-only billing information an expired church needs in order to renew.
+BILLING_INFO_PATH = re.compile(r'^/api/v1/churches/\d+/(subscription_status|subscription-payments)/$')
 
 
 class SubscriptionMiddleware:
@@ -47,7 +52,8 @@ class SubscriptionMiddleware:
             '/api/schema/',
         ]
         
-        is_public_route = any(request.path.startswith(path) for path in public_paths)
+        is_public_route = (any(request.path.startswith(path) for path in public_paths)
+                           or BILLING_INFO_PATH.match(request.path) is not None)
         
         # Skip subscription check for public routes
         if is_public_route:

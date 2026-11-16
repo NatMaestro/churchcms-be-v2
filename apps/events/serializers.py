@@ -45,17 +45,22 @@ class EventListSerializer(serializers.ModelSerializer):
     """Simplified event serializer for list views."""
     
     attendee_count = serializers.SerializerMethodField()
-    
+    is_registered = serializers.SerializerMethodField()
+
     class Meta:
         model = Event
         fields = [
             'id', 'title', 'description', 'date', 'end_date', 'location', 'type',
-            'capacity', 'attendee_count', 'is_recurring', 'recurrence_pattern',
+            'capacity', 'attendee_count', 'is_registered', 'is_recurring', 'recurrence_pattern',
             'show_on_website',
         ]
-    
+
     def get_attendee_count(self, obj):
         return len(obj.attendees) if obj.attendees else 0
+
+    def get_is_registered(self, obj):
+        """Whether the signed-in person is registered (set by the viewset's queryset)."""
+        return bool(getattr(obj, 'is_registered', False))
 
 
 class EventDetailSerializer(EventSerializer):

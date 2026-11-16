@@ -22,19 +22,24 @@ class MinistrySerializer(serializers.ModelSerializer):
     
     leader_name = serializers.CharField(source='leader.full_name', read_only=True)
     member_count = serializers.SerializerMethodField()
+    is_member = serializers.SerializerMethodField()
     
     class Meta:
         model = Ministry
         fields = [
             'id', 'name', 'description', 'leader', 'leader_name', 'category',
             'meeting_schedule', 'location', 'max_capacity', 'is_active',
-            'member_count', 'created_by', 'created_at', 'updated_at'
+            'member_count', 'is_member', 'created_by', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
     
     def get_member_count(self, obj):
         """Get count of active members."""
         return obj.members.filter(ministrymembership__status='active').count()
+
+    def get_is_member(self, obj):
+        """Whether the signed-in person belongs to this ministry (set by the viewset's queryset)."""
+        return bool(getattr(obj, 'is_member', False))
 
 
 class MinistryDetailSerializer(MinistrySerializer):

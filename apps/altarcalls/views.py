@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import AltarCall
 from .serializers import AltarCallSerializer, AltarCallListSerializer
+from core.member_context import is_church_staff
 from core.permissions import IsAdminOrReadOnly
 
 
@@ -28,7 +29,11 @@ class AltarCallViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Filter altar calls."""
-        return AltarCall.objects.all().order_by('-service_date')
+        altar_calls = AltarCall.objects.all()
+        if not is_church_staff(self.request.user):
+            # A member sees only the altar calls recorded for them.
+            altar_calls = altar_calls.filter(member__user=self.request.user)
+        return altar_calls.order_by('-service_date')
     
     @action(detail=False, methods=['get'])
     def follow_up_pending(self, request):

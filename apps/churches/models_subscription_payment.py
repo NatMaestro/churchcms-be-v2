@@ -21,15 +21,8 @@ class SubscriptionPayment(models.Model):
     currency = models.CharField(max_length=3, default='GHS')
     
     # Plan Information
-    plan = models.CharField(
-        max_length=20,
-        choices=[
-            ('basic', 'Basic'),
-            ('standard', 'Standard'),
-            ('premium', 'Premium'),
-            ('enterprise', 'Enterprise'),
-        ]
-    )
+    # A Plan.code. Plans live in the database, so this is not a fixed choice list.
+    plan = models.CharField(max_length=20)
     duration = models.CharField(
         max_length=20,
         choices=[
@@ -94,31 +87,8 @@ class SubscriptionPayment(models.Model):
         self.save(update_fields=['status', 'completed_at', 'updated_at'])
     
     def activate_subscription(self):
-        """Activate subscription after successful payment."""
-        from django.utils import timezone
-        from datetime import timedelta
-        
-        if self.subscription_activated:
-            return
-        
-        now = timezone.now()
-        if self.duration == 'yearly':
-            subscription_end = now + timedelta(days=365)
-        else:
-            subscription_end = now + timedelta(days=30)
-        
-        # Update church subscription
-        self.church.plan = self.plan
-        self.church.subscription_status = 'active'
-        self.church.subscription_start_date = now
-        self.church.subscription_end_date = subscription_end
-        self.church.trial_end_date = None  # Clear trial if upgrading
-        self.church.save(update_fields=['plan', 'subscription_status', 'subscription_start_date', 'subscription_end_date', 'trial_end_date'])
-        
-        # Update payment record
-        self.subscription_activated = True
-        self.subscription_start_date = now
-        self.subscription_end_date = subscription_end
-        self.save(update_fields=['subscription_activated', 'subscription_start_date', 'subscription_end_date', 'updated_at'])
+        """Give the church this payment's paid period (idempotent)."""
+        from .subscriptions import activate_paid_period
 
-
+        activate_paid_period(self.pk)
+        self.refresh_from_db()

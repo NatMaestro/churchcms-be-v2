@@ -8,7 +8,6 @@ import os
 import requests
 import logging
 from django.utils import timezone
-from django.db import transaction
 from django.conf import settings
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import api_view, permission_classes
@@ -20,7 +19,9 @@ import json
 import uuid
 
 from .models import Church
+from .models_plan import PLAN_CURRENCY, Plan
 from .models_subscription_payment import SubscriptionPayment
+from .subscriptions import activate_paid_period, charge_matches_payment, to_minor_units
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +73,11 @@ def initialize_subscription_payment(request):
             'error': 'Missing required fields: church_id, plan, email'
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    if plan not in ['basic', 'standard', 'premium', 'enterprise']:
+    plan_record = Plan.objects.filter(code=plan, is_active=True).first()
+    if plan_record is None:
         return Response({
             'success': False,
-            'error': 'Invalid plan. Must be: basic, standard, premium, or enterprise'
+            'error': 'Invalid plan'
         }, status=status.HTTP_400_BAD_REQUEST)
     
     if duration not in ['monthly', 'yearly']:
@@ -101,23 +103,15 @@ def initialize_subscription_payment(request):
             'error': 'Permission denied'
         }, status=status.HTTP_403_FORBIDDEN)
     
-    # Calculate amount based on plan and duration
-    plan_prices = {
-        'basic': {'monthly': 19, 'yearly': 205},  # 10% discount for yearly
-        'standard': {'monthly': 29, 'yearly': 313},
-        'premium': {'monthly': 79, 'yearly': 853},
-        'enterprise': {'monthly': 199, 'yearly': 2149},
-    }
-    
-    amount = plan_prices.get(plan, {}).get(duration, 0)
-    if amount == 0:
+    # Prices come from the plan a platform admin set; the payment keeps its own copy.
+    amount = plan_record.price_for(duration)
+    if not amount:
         return Response({
             'success': False,
             'error': 'Invalid plan or duration combination'
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    # Convert to smallest currency unit (kobo for NGN, pesewas for GHS)
-    amount_in_cents = int(amount * 100)
+    amount_in_cents = to_minor_units(amount)
     
     # Generate unique reference
     reference = f"SUB_{church.id}_{uuid.uuid4().hex[:12].upper()}"
@@ -127,7 +121,7 @@ def initialize_subscription_payment(request):
         payment = SubscriptionPayment.objects.create(
             church=church,
             amount=amount,
-            currency='GHS',
+            currency=PLAN_CURRENCY,
             plan=plan,
             duration=duration,
             reference=reference,
@@ -265,6 +259,7 @@ def initialize_subscription_payment(request):
         payload = {
             'email': email,
             'amount': amount_in_cents,
+            'currency': PLAN_CURRENCY,
             'reference': reference,
             'callback_url': callback_url,
             'metadata': {
@@ -387,17 +382,22 @@ def verify_subscription_payment(request):
         
         paystack_data = response.json()
         
-        if paystack_data.get('status') and paystack_data.get('data', {}).get('status') == 'success':
-            # Payment successful
-            with transaction.atomic():
-                payment.status = 'completed'
-                payment.paystack_response = paystack_data
-                payment.mark_completed()
-                
-                # Activate subscription
-                payment.activate_subscription()
-                
-                logger.info(f"✅ Payment verified and subscription activated: {reference}")
+        charge = paystack_data.get('data') or {}
+        if paystack_data.get('status') and charge.get('status') == 'success' and not charge_matches_payment(payment, charge):
+            # Paid, but not what this plan costs: never activate on a short or wrong-currency charge.
+            payment.status = 'failed'
+            payment.paystack_response = paystack_data
+            payment.save(update_fields=['status', 'paystack_response', 'updated_at'])
+            logger.warning('subscription_payment_amount_mismatch', extra={'payment_id': payment.id, 'source': 'verify'})
+            return Response({
+                'success': False,
+                'error': 'The amount paid does not match the plan price. Please contact support.',
+                'payment': {'id': payment.id, 'status': payment.status},
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if paystack_data.get('status') and charge.get('status') == 'success':
+            payment = activate_paid_period(payment.pk, paystack_data)
+            logger.info('subscription_payment_activated', extra={'payment_id': payment.id, 'source': 'verify'})
             
             return Response({
                 'success': True,
@@ -484,17 +484,18 @@ def paystack_webhook(request):
                 logger.warning(f"⚠️ Payment not found for webhook reference: {reference}")
                 return JsonResponse({'error': 'Payment not found'}, status=404)
             
-            # Only process if not already completed
-            if payment.status != 'completed':
-                with transaction.atomic():
-                    payment.status = 'completed'
+            if not charge_matches_payment(payment, data):
+                # Acknowledge (so Paystack stops retrying) but never activate a wrong amount.
+                if payment.status != 'completed':
+                    payment.status = 'failed'
                     payment.paystack_response = payload
-                    payment.mark_completed()
-                    
-                    # Activate subscription
-                    payment.activate_subscription()
-                    
-                    logger.info(f"✅ Webhook: Payment completed and subscription activated: {reference}")
+                    payment.save(update_fields=['status', 'paystack_response', 'updated_at'])
+                logger.warning('subscription_payment_amount_mismatch', extra={'payment_id': payment.id, 'source': 'webhook'})
+                return JsonResponse({'status': 'received'})
+
+            # Idempotent: a replay or a racing redirect changes nothing.
+            activate_paid_period(payment.pk, payload)
+            logger.info('subscription_payment_activated', extra={'payment_id': payment.id, 'source': 'webhook'})
             
             return JsonResponse({'status': 'success'})
         

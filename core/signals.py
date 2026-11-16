@@ -7,6 +7,19 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 
+def _current_church():
+    """
+    The church whose schema this request is running in, or None.
+    Member, payment and request rows live inside the church's own schema and
+    have no `church` field, so the church comes from the tenant connection.
+    """
+    from django.db import connection
+    from apps.churches.models import Church
+
+    tenant = getattr(connection, 'tenant', None)
+    return tenant if isinstance(tenant, Church) else None
+
+
 @receiver(post_save, sender='events.Event')
 def create_event_notifications(sender, instance, created, **kwargs):
     """
@@ -146,9 +159,13 @@ def create_request_notifications(sender, instance, created, **kwargs):
         from apps.notifications.models import Notification
         from apps.authentication.models import User
         
+        church = _current_church()
+        if not church:
+            return
+
         # Notify admins
         admins = User.objects.filter(
-            church=instance.member.church,
+            church=church,
             role='admin',
             is_active=True
         )
@@ -261,9 +278,13 @@ def create_payment_notifications(sender, instance, created, **kwargs):
                 }
             )
         
+        church = _current_church()
+        if not church or not instance.member:
+            return
+
         # Notify admins
         admins = User.objects.filter(
-            church=instance.member.church,
+            church=church,
             role='admin',
             is_active=True
         )
@@ -293,7 +314,7 @@ def create_prayer_request_notifications(sender, instance, created, **kwargs):
         
         # Notify admins and prayer team
         recipients = User.objects.filter(
-            church=instance.member.church if instance.member else None,
+            church=_current_church(),
             role__in=['admin'],
             is_active=True
         )

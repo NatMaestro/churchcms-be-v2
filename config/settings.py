@@ -244,6 +244,7 @@ REST_FRAMEWORK = {
         'church_website_content': '300/hour',
         'public_plans': '300/hour',
         'demo_request_submit': '5/hour',
+        'site_settings': '300/hour',
     }
 }
 

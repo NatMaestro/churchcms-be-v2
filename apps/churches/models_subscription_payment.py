@@ -58,6 +58,24 @@ class SubscriptionPayment(models.Model):
     subscription_start_date = models.DateTimeField(null=True, blank=True)
     subscription_end_date = models.DateTimeField(null=True, blank=True)
     
+    # How the money arrived. Paystack payments are recorded automatically;
+    # the rest are recorded by a platform admin.
+    payment_method = models.CharField(
+        max_length=20, default='paystack',
+        choices=[
+            ('paystack', 'Paystack'),
+            ('mobile_money', 'Mobile Money'),
+            ('bank_transfer', 'Bank transfer'),
+            ('cash', 'Cash'),
+            ('other', 'Other'),
+        ],
+    )
+    recorded_by = models.ForeignKey(
+        'authentication.User', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='recorded_subscription_payments',
+    )
+    note = models.TextField(blank=True)
+
     # User Information (who initiated payment)
     user_email = models.EmailField()
     user_name = models.CharField(max_length=255, blank=True)

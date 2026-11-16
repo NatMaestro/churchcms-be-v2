@@ -23,6 +23,9 @@ urlpatterns = [
     # Church management
     path('api/v1/churches/', include('apps.churches.urls')),
     path('api/v1/plans/', public_plans, name='public-plans'),
+
+    # Platform admin (platform superadmins only)
+    path('api/v1/platform/', include('apps.superadmin.urls')),
     
     # Member management
     path('api/v1/members/', include('apps.members.urls')),

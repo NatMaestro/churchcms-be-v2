@@ -1,19 +1,17 @@
 """
-Super admin URLs.
+Platform admin URLs, mounted at /api/v1/platform/ (platform superadmins only).
 """
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
 
-from django.urls import path
+from .views import PlatformChurchViewSet, PlatformOverviewView, PlatformPaymentViewSet, PlatformPlanViewSet
+
+router = DefaultRouter()
+router.register(r'churches', PlatformChurchViewSet, basename='platform-church')
+router.register(r'plans', PlatformPlanViewSet, basename='platform-plan')
+router.register(r'payments', PlatformPaymentViewSet, basename='platform-payment')
 
 urlpatterns = [
-    # TODO: Add super admin endpoints
-    # - Church management
-    # - User management across all churches
-    # - System monitoring
-    # - Analytics
+    path('overview/', PlatformOverviewView.as_view(), name='platform-overview'),
+    path('', include(router.urls)),
 ]
-
-
-
-
-
-

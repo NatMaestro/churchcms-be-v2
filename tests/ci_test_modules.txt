@@ -12,3 +12,4 @@ tests.test_member_request_submit
 tests.test_member_invites
 tests.test_church_website_content
 tests.test_church_lookup
+tests.test_frontend_links

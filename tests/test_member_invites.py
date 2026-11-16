@@ -13,7 +13,7 @@ from django.conf import settings
 from django.core import mail
 from django.core.cache import cache
 from django.db import connection
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 from django_tenants.utils import tenant_context
 from rest_framework.test import APIClient
@@ -33,6 +33,9 @@ APPLICANT_EMAIL = 'ama@example.test'
 APPLICANT_PHONE = '0209998887'
 APPLICANT_ADDRESS = '7 Private Lane'
 NEW_PASSWORD = 'chosen-by-member-123'
+MAIN_SITE = 'https://www.faithflow.example.test'
+CHURCH_A_SITE = 'https://invitea.faithflow.example.test'
+FORGOT_URL = '/api/v1/auth/forgot-password/'
 
 
 def application_fields(**overrides):
@@ -67,6 +70,7 @@ def token_from(email_message):
     return re.search(r'token=([\w-]+)', email_message.body).group(1)
 
 
+@override_settings(FRONTEND_URL=MAIN_SITE)
 class MemberInviteTests(TransactionTestCase):
     # See tests/test_tenant_binding.py: makes the flush use TRUNCATE ... CASCADE.
     available_apps = list(settings.INSTALLED_APPS)
@@ -230,6 +234,31 @@ class MemberInviteTests(TransactionTestCase):
         with tenant_context(self.church_a):
             self.assertEqual(Member.objects.count(), 0)
         self.assertEqual(mail.outbox, [])
+
+    # --- links open on the church's own site ---
+
+    def test_admin_alert_links_to_the_churchs_site(self):
+        APIClient().post(SUBMIT_URL, {'subdomain': 'invitea', **application_fields()}, format='json')
+
+        self.assertIn(f'{CHURCH_A_SITE}/admin/member-requests', mail.outbox[0].body)
+
+    def test_invite_link_opens_on_the_churchs_site(self):
+        self._confirm(self._approved_request(self.church_a))
+
+        self.assertIn(f'{CHURCH_A_SITE}/reset-password?token=', mail.outbox[0].body)
+
+    def test_member_reset_link_opens_on_the_churchs_site(self):
+        APIClient().post(FORGOT_URL, {'email': self.member_a.email}, format='json')
+
+        self.assertIn(f'{CHURCH_A_SITE}/reset-password?token=', mail.outbox[0].body)
+
+    def test_reset_link_for_user_without_church_uses_the_main_site(self):
+        User.objects.create_user(email='platform@example.test', password='pass-12345',
+                                 name='Platform', role='superadmin')
+
+        APIClient().post(FORGOT_URL, {'email': 'platform@example.test'}, format='json')
+
+        self.assertIn(f'{MAIN_SITE}/reset-password?token=', mail.outbox[0].body)
 
     # --- resend invite ---
 

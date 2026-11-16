@@ -8,8 +8,8 @@ services:
     buildCommand: |
       pip install -r requirements.txt
       python manage.py collectstatic --no-input
-      python manage.py migrate_schemas --shared --no-input
-      python manage.py migrate_schemas --no-input
+      python manage.py migrate_schemas --shared --noinput
+      python manage.py migrate_schemas --noinput
     startCommand: gunicorn config.wsgi:application
     envVars:
       - key: PYTHON_VERSION

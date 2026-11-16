@@ -326,6 +326,9 @@ SPECTACULAR_SETTINGS = {
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
     'SCHEMA_PATH_PREFIX': r'/api/v1/',
+    # The docs list every endpoint: platform superadmins only (a church's own website uses the
+    # public website-content and membership-form endpoints, which need no docs).
+    'SERVE_PERMISSIONS': ['core.permissions.IsSuperAdmin'],
 }
 
 # Email Configuration

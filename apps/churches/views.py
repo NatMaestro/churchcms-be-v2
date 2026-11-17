@@ -14,6 +14,7 @@ from .serializers import ChurchSerializer, ChurchDetailSerializer, DomainSeriali
 from core.member_context import is_church_staff
 from core.permissions import IsSuperAdmin, IsChurchAdmin
 from .giving_details import GivingDetailsSerializer, read_giving_details, save_giving_details
+from .setup_rules import RESERVED_SUBDOMAINS, clean_modules, normalize_subdomain, subdomain_problem
 
 logger = logging.getLogger(__name__)
 
@@ -110,32 +111,27 @@ class ChurchViewSet(viewsets.ModelViewSet):
         POST /api/v1/churches/validate-subdomain/
         Body: { "subdomain": "newchurch" }
         """
-        subdomain = request.data.get('subdomain', '').lower().strip()
-        
+        subdomain = normalize_subdomain(request.data.get('subdomain', ''))
+
         if not subdomain:
             return Response({
                 'success': False,
                 'available': False,
                 'error': 'Subdomain is required'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Check if subdomain already exists
+
+        problem = subdomain_problem(subdomain)
         exists = Church.objects.filter(subdomain=subdomain).exists()
-        
-        # Validate subdomain format
-        import re
-        is_valid = bool(re.match(r'^[a-z0-9]+(?:-[a-z0-9]+)*$', subdomain))
-        
-        # Reserved subdomains
-        reserved = ['www', 'api', 'admin', 'app', 'mail', 'ftp', 'superadmin']
-        is_reserved = subdomain in reserved
-        
+        is_reserved = subdomain in RESERVED_SUBDOMAINS
+
         return Response({
             'success': True,
-            'available': not exists and is_valid and not is_reserved,
+            'subdomain': subdomain,
+            'available': problem is None and not exists,
             'exists': exists,
-            'valid_format': is_valid,
-            'reserved': is_reserved
+            'valid_format': problem is None or is_reserved,
+            'reserved': is_reserved,
+            'message': problem or ('This address is already taken. Please choose another.' if exists else ''),
         })
     
     @action(detail=True, methods=['get', 'put'])
@@ -165,6 +161,14 @@ class ChurchViewSet(viewsets.ModelViewSet):
         elif request.method == 'PUT':
             # Update features
             new_features = request.data.get('features', {})
+            if not isinstance(new_features, dict):
+                return Response({'success': False, 'error': 'Features must be an object.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            if 'modules' in new_features:
+                try:
+                    new_features = {**new_features, 'modules': clean_modules(new_features['modules'])}
+                except ValueError as error:
+                    return Response({'success': False, 'error': str(error)}, status=status.HTTP_400_BAD_REQUEST)
             church.features = {**church.features, **new_features}
             church.save()
             

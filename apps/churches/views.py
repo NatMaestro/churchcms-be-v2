@@ -48,6 +48,9 @@ class ChurchViewSet(viewsets.ModelViewSet):
         """
         if self.action in ('create', 'destroy'):
             return [permissions.IsAuthenticated(), IsSuperAdmin()]
+        if self.action == 'church_settings':
+            # Holds integration secrets (e.g. a stream key): staff only, reading included.
+            return [permissions.IsAuthenticated(), IsChurchStaff()]
         if self.action in CHURCH_ADMIN_WRITE_ACTIONS and self.request.method not in permissions.SAFE_METHODS:
             return [permissions.IsAuthenticated(), IsChurchStaff()]
         return super().get_permissions()

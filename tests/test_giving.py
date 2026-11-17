@@ -191,6 +191,14 @@ class GivingTests(TransactionTestCase):
 
         self.assertEqual(response.status_code, 200, response.content)
 
+    def test_only_staff_can_read_church_settings(self):
+        url = f'/api/v1/churches/{self.church.pk}/church_settings/'
+
+        self.assertEqual(self._client(self.member_user).get(url).status_code, 403)
+        response = self._client(self.admin).get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['settings']['integration'], {'service_key': 'not-for-members'})
+
     def test_members_never_see_integration_settings(self):
         member_view = self._client(self.member_user).get(f'/api/v1/churches/{self.church.pk}/').data
         admin_view = self._client(self.admin).get(f'/api/v1/churches/{self.church.pk}/').data

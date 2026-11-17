@@ -2,8 +2,12 @@
 Payment serializers.
 """
 
+from decimal import Decimal
+
 from rest_framework import serializers
 from .models import Payment, Pledge, TaxReceipt
+
+MIN_GIFT = Decimal('0.01')
 
 
 class PaymentSerializer(serializers.ModelSerializer):
@@ -20,7 +24,30 @@ class PaymentSerializer(serializers.ModelSerializer):
             'is_tax_deductible', 'receipt_issued', 'receipt_issued_at', 'category',
             'subcategory', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'currency', 'fiscal_year', 'receipt_issued',
+                            'receipt_issued_at']
+        extra_kwargs = {
+            # Generated when the office leaves it empty (see PaymentViewSet.perform_create).
+            'reference': {'required': False, 'allow_blank': True},
+            'member': {'required': True, 'allow_null': False},
+        }
+
+    def validate_amount(self, value):
+        if value < MIN_GIFT:
+            raise serializers.ValidationError('Enter an amount of at least GH₵0.01.')
+        return value
+
+
+class PaymentNotesSerializer(serializers.ModelSerializer):
+    """
+    The only thing that can change on a recorded payment: its notes. A wrong
+    amount, member, type or date is corrected by reversing the payment and
+    recording it again, so the history of what was given is never rewritten.
+    """
+
+    class Meta:
+        model = Payment
+        fields = ['notes']
 
 
 class PaymentListSerializer(serializers.ModelSerializer):

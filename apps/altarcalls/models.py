@@ -1,6 +1,13 @@
 """
 Altar call models.
 For Pentecostal and non-denominational churches.
+
+Recorded by church staff during a service and seen by church staff only (a
+member never sees altar-call records, including their own). Each record is
+for a member or, for someone who isn't a member yet, a visitor.
+
+Field classification: PERSONAL = identifies a person (member link, visitor
+name and phone); PASTORAL = sensitive notes written by staff.
 """
 
 from django.db import models
@@ -20,6 +27,10 @@ class AltarCall(models.Model):
         blank=True
     )
     
+    # Someone who isn't a member yet (used when member is empty).
+    visitor_name = models.CharField(max_length=150, blank=True)   # PERSONAL
+    visitor_phone = models.CharField(max_length=30, blank=True)   # PERSONAL, for follow-up only
+
     # Service Information
     service_date = models.DateField()
     service_type = models.CharField(
@@ -49,7 +60,7 @@ class AltarCall(models.Model):
     )
     
     # Details
-    notes = models.TextField(blank=True)
+    notes = models.TextField(blank=True)  # PASTORAL
     
     # Follow-up
     follow_up_required = models.BooleanField(default=True)
@@ -63,7 +74,7 @@ class AltarCall(models.Model):
         ],
         default='pending'
     )
-    follow_up_notes = models.TextField(blank=True)
+    follow_up_notes = models.TextField(blank=True)  # PASTORAL
     
     # Assignment
     assigned_to = models.ForeignKey(
@@ -87,6 +98,12 @@ class AltarCall(models.Model):
             models.Index(fields=['follow_up_status']),
         ]
     
+    @property
+    def person_name(self):
+        """Who came forward: the member, or the visitor."""
+        if self.member:
+            return self.member.full_name
+        return self.visitor_name or 'Visitor'
+
     def __str__(self):
-        member_name = self.member.full_name if self.member else 'Guest'
-        return f"{member_name} - {self.reason} on {self.service_date}"
+        return f"{self.person_name} - {self.reason} on {self.service_date}"

@@ -80,6 +80,7 @@ TENANT_APPS = [
     'apps.requests',
     'apps.prayers',
     'apps.altarcalls',
+    'apps.dues',  # dues plans and the digital dues card
     'apps.announcements',
     'apps.notifications',
     'apps.roles',

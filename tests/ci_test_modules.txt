@@ -24,3 +24,8 @@ tests.test_member_data_scoping
 tests.test_church_notifications
 tests.test_api_docs_access
 tests.test_prayer_requests
+tests.test_service_requests
+tests.test_volunteers
+tests.test_giving
+tests.test_altar_calls
+tests.test_dues

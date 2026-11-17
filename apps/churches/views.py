@@ -2,6 +2,8 @@
 Church views with subdomain resolution and feature management.
 """
 
+import logging
+
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -9,7 +11,22 @@ from django.shortcuts import get_object_or_404
 from . import subscriptions
 from .models import Church, Domain
 from .serializers import ChurchSerializer, ChurchDetailSerializer, DomainSerializer, PublicChurchSerializer
+from core.member_context import is_church_staff
 from core.permissions import IsSuperAdmin, IsChurchAdmin
+from .giving_details import GivingDetailsSerializer, read_giving_details, save_giving_details
+
+logger = logging.getLogger(__name__)
+
+# Church changes a church admin (of that church) or a platform superadmin may make.
+CHURCH_ADMIN_WRITE_ACTIONS = ('update', 'partial_update', 'church_settings', 'apply_denomination_defaults',
+                              'giving_details')
+
+
+class IsChurchStaff(permissions.BasePermission):
+    message = 'Only the church admin can change the church.'
+
+    def has_permission(self, request, view):
+        return is_church_staff(request.user)
 
 
 BILLING_HISTORY_LIMIT = 24
@@ -23,6 +40,18 @@ class ChurchViewSet(viewsets.ModelViewSet):
     serializer_class = ChurchSerializer
     permission_classes = [permissions.IsAuthenticated]
     
+    def get_permissions(self):
+        """
+        Reading the church is open to its people; changing it is for its admin
+        (the queryset limits admins to their own church); creating or deleting
+        a church is for platform superadmins.
+        """
+        if self.action in ('create', 'destroy'):
+            return [permissions.IsAuthenticated(), IsSuperAdmin()]
+        if self.action in CHURCH_ADMIN_WRITE_ACTIONS and self.request.method not in permissions.SAFE_METHODS:
+            return [permissions.IsAuthenticated(), IsChurchStaff()]
+        return super().get_permissions()
+
     def get_serializer_class(self):
         """Use detailed serializer for retrieve."""
         if self.action == 'retrieve':
@@ -198,6 +227,24 @@ class ChurchViewSet(viewsets.ModelViewSet):
                 'message': f'{settings_type.capitalize()} settings updated successfully'
             })
     
+    @action(detail=True, methods=['get', 'put'], url_path='giving-details', url_name='giving-details')
+    def giving_details(self, request, pk=None):
+        """
+        The church's Mobile Money and bank details for members who give directly.
+
+        GET /api/v1/churches/:id/giving-details/  (anyone in the church)
+        PUT /api/v1/churches/:id/giving-details/  (the church admin; replaces all fields)
+        """
+        church = self.get_object()
+        if request.method == 'GET':
+            return Response(read_giving_details(church))
+
+        serializer = GivingDetailsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        details = save_giving_details(church, serializer.validated_data, request.user)
+        logger.info('church_giving_details_updated', extra={'church_id': church.pk, 'actor_id': request.user.pk})
+        return Response(details)
+
     @action(detail=True, methods=['post'])
     def apply_denomination_defaults(self, request, pk=None):
         """

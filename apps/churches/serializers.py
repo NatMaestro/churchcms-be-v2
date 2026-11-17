@@ -14,10 +14,22 @@ class DomainSerializer(serializers.ModelSerializer):
         fields = ['id', 'domain', 'is_primary']
 
 
+# Settings members of the church must not read (integration settings may hold service credentials).
+STAFF_ONLY_SETTINGS = ('integration_settings',)
+
+
 class ChurchSerializer(serializers.ModelSerializer):
     """Church serializer."""
     
     domains = DomainSerializer(many=True, read_only=True)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        user = getattr(self.context.get('request'), 'user', None)
+        if not (user and user.is_authenticated and (user.is_church_admin or user.is_superadmin)):
+            for name in STAFF_ONLY_SETTINGS:
+                data.pop(name, None)
+        return data
     
     class Meta:
         model = Church

@@ -10,7 +10,9 @@ services:
       python manage.py collectstatic --no-input
       python manage.py migrate_schemas --shared --noinput
       python manage.py migrate_schemas --noinput
-    startCommand: gunicorn config.wsgi:application
+    # Creating a church builds its database schema (all church-level migrations),
+    # which takes longer than gunicorn's 30-second default on the free plan.
+    startCommand: gunicorn config.wsgi:application --timeout 120
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0

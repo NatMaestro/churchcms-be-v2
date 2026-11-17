@@ -138,10 +138,9 @@ class MemberDataScopingTests(TransactionTestCase):
 
         self.assertEqual({row['member'] for row in rows}, {self.kofi.pk})
 
-    def test_a_member_sees_only_their_own_altar_calls(self):
-        rows = results(self._client(self.kofi_user).get('/api/v1/altar-calls/'))
-
-        self.assertEqual(len(rows), 1)
+    def test_altar_calls_are_for_staff_only_not_even_a_members_own(self):
+        # Owner's decision (2026-11-17): altar-call records hold pastoral notes, so members see none.
+        self.assertEqual(self._client(self.kofi_user).get('/api/v1/altar-calls/').status_code, 403)
         self.assertEqual(self._client(self.admin).get('/api/v1/altar-calls/').data['count'], 2)
 
     # --- ministries ---

@@ -212,34 +212,43 @@ class ChurchRegistrationSerializer(serializers.Serializer):
     # Church fields
     church_name = serializers.CharField(required=True, max_length=255)
     subdomain = serializers.CharField(required=True, max_length=100)
-    denomination = serializers.CharField(required=False, allow_blank=True, default='')
+    denomination = serializers.CharField(required=False, allow_blank=True, default='', max_length=100)
+    phone = serializers.CharField(required=False, allow_blank=True, default='', max_length=20)
     features = serializers.JSONField(required=False, default=dict)
-    
-    def validate(self, attrs):
-        """Validate password match and subdomain."""
-        if attrs['password'] != attrs['password_confirm']:
-            raise serializers.ValidationError({
-                'password': 'Passwords do not match.'
-            })
-        
-        # Validate subdomain format
-        subdomain = attrs['subdomain'].lower()
-        if not subdomain.replace('_', '').replace('-', '').isalnum():
-            raise serializers.ValidationError({
-                'subdomain': 'Subdomain can only contain letters, numbers, hyphens, and underscores.'
-            })
-        
-        # Check if subdomain already exists (in public schema)
+
+    def validate_email(self, value):
+        # Users are stored once for the whole platform, so an email belongs to one account.
+        value = value.strip().lower()
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError('This email already has a Flocktend account. Sign in instead.')
+        return value
+
+    def validate_subdomain(self, value):
         from apps.churches.models import Church
+        from apps.churches.setup_rules import normalize_subdomain, subdomain_problem
+
+        subdomain = normalize_subdomain(value)
+        problem = subdomain_problem(subdomain)
+        if problem:
+            raise serializers.ValidationError(problem)
         if Church.objects.filter(subdomain=subdomain).exists():
-            raise serializers.ValidationError({
-                'subdomain': 'This subdomain is already taken.'
-            })
-        
-        # Note: We don't check email uniqueness here because:
-        # 1. Emails can be the same across different tenants (churches)
-        # 2. The user will be created in the tenant schema, not public schema
-        # 3. Email uniqueness is enforced per tenant schema
-        
+            raise serializers.ValidationError('This address is already taken. Please choose another.')
+        return subdomain
+
+    def validate_features(self, value):
+        from apps.churches.setup_rules import clean_modules
+
+        if not isinstance(value, dict):
+            raise serializers.ValidationError('Features must be an object.')
+        if 'modules' in value:
+            try:
+                value = {**value, 'modules': clean_modules(value['modules'])}
+            except ValueError as error:
+                raise serializers.ValidationError(str(error))
+        return value
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password_confirm']:
+            raise serializers.ValidationError({'password_confirm': 'Passwords do not match.'})
         return attrs
 

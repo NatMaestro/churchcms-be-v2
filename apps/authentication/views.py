@@ -186,6 +186,7 @@ class RegisterView(APIView):
                             subdomain=validated_data['subdomain'],
                             email=validated_data['email'],
                             denomination=validated_data.get('denomination', ''),
+                            phone=validated_data.get('phone', ''),
                             features=validated_data.get('features', {}),
                             is_active=True
                         )

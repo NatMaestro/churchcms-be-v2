@@ -58,6 +58,9 @@ urlpatterns = [
     
     # Altar Calls
     path('api/v1/altar-calls/', include('apps.altarcalls.urls')),
+
+    # Dues (plans, categories and the digital dues card)
+    path('api/v1/dues/', include('apps.dues.urls')),
     
     # Announcements
     path('api/v1/announcements/', include('apps.announcements.urls')),

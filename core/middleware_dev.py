@@ -48,7 +48,11 @@ class TenantHeaderMiddleware:
         # Check if this is a public route
         is_public_route = any(request.path.startswith(path) for path in public_paths)
         
-        # If no tenant header and not a public route, stay in public schema
+        # The connection (and its schema) outlives the request, so start every
+        # request in the public schema rather than wherever the last one left it.
+        connection.set_schema_to_public()
+
+        # No tenant header: the request runs in the public schema.
         if not tenant_subdomain:
             if not is_public_route:
                 logger.warning(f'⚠️ No X-Tenant-Subdomain header for protected route: {request.path}')

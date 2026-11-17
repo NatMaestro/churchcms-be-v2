@@ -5,13 +5,16 @@ subdomain. These tests go through the real middleware stack and real JWTs.
 """
 from django.conf import settings
 from django.db import connection
-from django.test import TransactionTestCase
+from django.http import HttpResponse
+from django.test import RequestFactory, SimpleTestCase, TransactionTestCase
+from django_tenants.utils import get_public_schema_name
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.authentication.models import User
 from apps.churches.models import Church
 from apps.members.models import Member
+from core.middleware_dev import TenantHeaderMiddleware
 
 MEMBERS_URL = '/api/v1/members/'
 TEST_SCHEMAS = ('bindinga', 'bindingb')
@@ -93,3 +96,33 @@ class TenantBindingTests(TransactionTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('only-in-b@example.test', response.content.decode())
+
+
+class HeaderlessRequestSchemaTests(SimpleTestCase):
+    """
+    The database connection outlives a request, and so does its schema. A request
+    without X-Tenant-Subdomain must not run in the schema the previous request
+    left behind (this broke church sign-up: "Can't create tenant outside the
+    public schema").
+    """
+
+    def tearDown(self):
+        connection.set_schema_to_public()
+
+    def _schema_seen_by_view(self, path):
+        seen = {}
+
+        def view(request):
+            seen['schema'] = connection.schema_name
+            return HttpResponse()
+
+        TenantHeaderMiddleware(view)(RequestFactory().post(path))
+        return seen['schema']
+
+    def test_request_without_tenant_header_runs_in_public_schema(self):
+        connection.set_tenant(Church(schema_name='leftover', subdomain='leftover'))
+        self.assertEqual(self._schema_seen_by_view('/api/v1/auth/register/'), get_public_schema_name())
+
+    def test_protected_route_without_tenant_header_does_not_inherit_a_tenant(self):
+        connection.set_tenant(Church(schema_name='leftover', subdomain='leftover'))
+        self.assertEqual(self._schema_seen_by_view(MEMBERS_URL), get_public_schema_name())

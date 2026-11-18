@@ -96,6 +96,31 @@ class Church(TenantMixin):
     
     def __str__(self):
         return self.name
+
+    def create_schema(self, check_if_exists=False, sync_schema=True, verbosity=1):
+        """
+        Copy the ready-made church template (seconds) instead of running every
+        migration (over a minute), then migrate whatever the template lacks.
+        Falls back to the library's build-from-migrations if the copy can't run.
+        """
+        from django.core.management import call_command
+        from django.db import connection
+        from django_tenants.postgresql_backend.base import _check_schema_name
+        from django_tenants.utils import schema_exists
+
+        from .schema_template import copy_template_to
+
+        if sync_schema:
+            _check_schema_name(self.schema_name)
+            if check_if_exists and schema_exists(self.schema_name):
+                return False
+            if copy_template_to(self.schema_name):
+                call_command('migrate_schemas', tenant=True, schema_name=self.schema_name,
+                             interactive=False, verbosity=verbosity)
+                connection.set_schema_to_public()
+                return True
+        return super().create_schema(check_if_exists=check_if_exists, sync_schema=sync_schema,
+                                     verbosity=verbosity)
     
     # Import subscription payment model
     # This allows accessing SubscriptionPayment via Church.subscription_payments

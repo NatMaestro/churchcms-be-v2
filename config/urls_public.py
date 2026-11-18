@@ -11,7 +11,6 @@ from drf_spectacular.views import (
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
-from apps.churches.views_setup import InitialSetupView
 from apps.churches.views_payment import paystack_webhook
 
 def api_root(request):
@@ -42,9 +41,6 @@ urlpatterns = [
     
     # API Root
     path('api/v1/', api_root, name='api-root'),
-    
-    # Initial setup endpoint (for deployment without shell access)
-    path('api/v1/setup/initial/', InitialSetupView.as_view(), name='initial-setup'),
     
     # Public authentication (church registration)
     path('api/v1/auth/', include('apps.authentication.urls_public')),

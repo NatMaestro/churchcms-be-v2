@@ -4,6 +4,7 @@ creates the member's login and emails them a single-use invite link to set
 their own password. Runs against real tenant schemas and Django's in-memory
 mailbox, so nothing leaves the machine.
 """
+import hashlib
 import re
 from datetime import timedelta
 from smtplib import SMTPException
@@ -196,7 +197,7 @@ class MemberInviteTests(TransactionTestCase):
     def test_invite_link_expires_after_72_hours(self):
         self._confirm(self._approved_request(self.church_a))
 
-        token = PasswordResetToken.objects.get(token=token_from(mail.outbox[0]))
+        token = PasswordResetToken.objects.get(token=hashlib.sha256(token_from(mail.outbox[0]).encode()).hexdigest())
         lifetime = token.expires_at - timezone.now()
         self.assertGreater(lifetime, timedelta(hours=71))
         self.assertLessEqual(lifetime, timedelta(hours=72))

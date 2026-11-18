@@ -23,7 +23,7 @@ from .serializers import (
     ChurchRegistrationSerializer
 )
 from .models import PasswordResetToken
-from .tokens import issue_password_token
+from .tokens import hash_password_token, issue_password_token
 from apps.churches.models import Church, Domain
 from apps.churches.provisioning import create_church_domains
 from apps.churches.subscriptions import start_trial
@@ -453,7 +453,7 @@ class ResetPasswordView(APIView):
             new_password = serializer.validated_data['new_password']
             
             try:
-                reset_token = PasswordResetToken.objects.get(token=token)
+                reset_token = PasswordResetToken.objects.get(token=hash_password_token(token))
                 
                 if not reset_token.is_valid():
                     return Response({

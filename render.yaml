@@ -10,8 +10,11 @@ services:
       python manage.py collectstatic --no-input
       python manage.py migrate_schemas --shared --noinput
       python manage.py migrate_schemas --noinput
-    # Creating a church builds its database schema (all church-level migrations),
-    # which takes longer than gunicorn's 30-second default on the free plan.
+      python manage.py refresh_church_template
+    # refresh_church_template keeps the empty schema new churches are copied from
+    # up to date. Without it, creating a church falls back to running every
+    # church-level migration, which takes longer than gunicorn's 30-second default
+    # on the free plan; hence the 120-second timeout.
     startCommand: gunicorn config.wsgi:application --timeout 120
     envVars:
       - key: PYTHON_VERSION

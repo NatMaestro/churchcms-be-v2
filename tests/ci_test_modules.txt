@@ -30,3 +30,4 @@ tests.test_giving
 tests.test_altar_calls
 tests.test_dues
 tests.test_church_signup
+tests.test_initial_setup_removed

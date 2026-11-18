@@ -52,54 +52,15 @@ git push -u origin main
 
 ---
 
-### Step 3: Get Your SETUP_TOKEN
+### Step 3: Create Your First Church
 
-After deployment completes:
-
-1. Go to your **Web Service** in Render dashboard
-
-2. Click **"Environment"** tab
-
-3. Find **`SETUP_TOKEN`** - click "Show" to reveal it
-
-4. **Copy this token** - you'll need it in the next step!
+The old `POST /api/v1/setup/initial/` endpoint has been removed. Create churches
+either through self-service sign-up on the frontend (`/onboarding`) or as a
+platform admin (`POST /api/v1/platform/churches/`).
 
 ---
 
-### Step 4: Create Your First Church (Via API!)
-
-Since you don't have Shell access, use this API endpoint:
-
-**Using Postman, Insomnia, or cURL:**
-
-```bash
-curl -X POST https://faithflow-backend.onrender.com/api/v1/setup/initial/ \
-  -H "Content-Type: application/json" \
-  -d '{
-    "church_name": "My Church",
-    "subdomain": "mychurch",
-    "email": "info@mychurch.com",
-    "denomination": "Pentecostal",
-    "admin_name": "Admin User",
-    "admin_email": "admin@mychurch.com",
-    "admin_password": "YourSecurePassword123!",
-    "setup_token": "paste-your-SETUP_TOKEN-here"
-  }'
-```
-
-**Or use the Swagger UI:**
-
-1. Go to: `https://faithflow-backend.onrender.com/api/docs/`
-
-2. Find: `POST /api/v1/setup/initial/`
-
-3. Click "Try it out"
-
-4. Fill in the JSON body with your church details
-
-5. **Important:** Use the `SETUP_TOKEN` from Render environment variables!
-
-6. Click "Execute"
+### Step 4: (removed)
 
 ---
 
@@ -202,22 +163,6 @@ Common issues:
 
 ---
 
-### Setup Endpoint Returns 403
-
-**Error:** "Invalid setup token"
-
-**Solution:** Make sure you copied the `SETUP_TOKEN` correctly from Render environment variables
-
----
-
-### Setup Endpoint Returns 400
-
-**Error:** "Setup already completed"
-
-**This is good!** It means a church already exists. The endpoint only works once for security.
-
----
-
 ## 📊 Deployment Checklist
 
 - [ ] Code pushed to GitHub
@@ -225,8 +170,7 @@ Common issues:
 - [ ] Database created (automatic)
 - [ ] Web service deployed (automatic)
 - [ ] Migrations ran (automatic during build)
-- [ ] SETUP_TOKEN copied from Render
-- [ ] First church created via setup endpoint
+- [ ] First church created via sign-up or the platform admin
 - [ ] Login tested
 - [ ] Swagger UI accessible
 - [ ] API endpoints tested

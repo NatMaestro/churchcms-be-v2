@@ -92,6 +92,12 @@ class CreateChurchTests(TestCase):
         self.assertFalse(Church.objects.exists())
         self.assertFalse(User.objects.filter(role='admin').exists())
 
+    def test_addresses_refused_at_self_sign_up_are_refused_here_too(self):
+        for subdomain in ('login', 'signup', 'flocktend', 'grace--chapel', 'g' * 41):
+            response = self.create(subdomain=subdomain)
+            self.assertEqual(response.status_code, 400, subdomain)
+        self.assertFalse(Church.objects.exists())
+
     def test_an_address_in_use_is_refused(self):
         with mock.patch.object(Church, 'auto_create_schema', False):
             Church.objects.create(schema_name='gracechapel', subdomain='gracechapel', name='Existing',

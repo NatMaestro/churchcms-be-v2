@@ -5,7 +5,6 @@ Used when a platform admin sets a church up after a demo. Self-service
 registration (RegisterView) shares the domain setup.
 """
 import logging
-import re
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -15,15 +14,11 @@ from django.db import connection, transaction
 from apps.authentication.tokens import issue_password_token
 from core.frontend_links import frontend_url
 
+from .setup_rules import normalize_subdomain, subdomain_problem
 from .subscriptions import start_trial
 
 logger = logging.getLogger(__name__)
 
-SUBDOMAIN_PATTERN = re.compile(r'^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$')
-RESERVED_SUBDOMAINS = frozenset({
-    'www', 'api', 'app', 'admin', 'superadmin', 'platform', 'public', 'mail', 'email',
-    'static', 'media', 'assets', 'cdn', 'help', 'support', 'status', 'blog', 'docs',
-})
 LOCAL_BASE_DOMAIN = 'localhost'
 ADMIN_INVITE_LIFETIME_HOURS = 72
 
@@ -33,12 +28,11 @@ class ProvisioningError(ValueError):
 
 
 def clean_subdomain(value):
-    subdomain = (value or '').strip().lower()
-    if not SUBDOMAIN_PATTERN.match(subdomain):
-        raise ProvisioningError('Use 3 to 63 lowercase letters, numbers and hyphens, '
-                                'starting and ending with a letter or number.')
-    if subdomain in RESERVED_SUBDOMAINS:
-        raise ProvisioningError('That address is reserved. Please choose another.')
+    """The same address rules as self-service sign-up (setup_rules)."""
+    subdomain = normalize_subdomain(value)
+    problem = subdomain_problem(subdomain)
+    if problem:
+        raise ProvisioningError(problem)
     return subdomain
 
 

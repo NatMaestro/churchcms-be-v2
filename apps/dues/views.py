@@ -26,6 +26,11 @@ from .serializers import (
     RecordDuesPaymentSerializer,
 )
 
+from apps.churches.module_access import requires_module
+
+# Every endpoint here refuses while the church has this module switched off.
+MODULE = requires_module('dues')
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,7 +44,7 @@ class IsChurchStaff(permissions.BasePermission):
 class DuesPlanViewSet(viewsets.ModelViewSet):
     queryset = DuesPlan.objects.prefetch_related('categories')
     serializer_class = DuesPlanSerializer
-    permission_classes = [permissions.IsAuthenticated, IsChurchStaff]
+    permission_classes = [permissions.IsAuthenticated, IsChurchStaff, MODULE]
     http_method_names = ['get', 'post', 'patch', 'head', 'options']  # plans are paused, never deleted
 
     def perform_create(self, serializer):
@@ -61,7 +66,7 @@ class DuesPlanViewSet(viewsets.ModelViewSet):
 class DuesCategoryViewSet(viewsets.ModelViewSet):
     queryset = DuesCategory.objects.all()
     serializer_class = DuesCategorySerializer
-    permission_classes = [permissions.IsAuthenticated, IsChurchStaff]
+    permission_classes = [permissions.IsAuthenticated, IsChurchStaff, MODULE]
     filterset_fields = ['plan']
 
     def destroy(self, request, *args, **kwargs):
@@ -76,7 +81,7 @@ class DuesCategoryViewSet(viewsets.ModelViewSet):
 class DuesAssignmentViewSet(viewsets.ModelViewSet):
     queryset = DuesAssignment.objects.select_related('member', 'category')
     serializer_class = DuesAssignmentSerializer
-    permission_classes = [permissions.IsAuthenticated, IsChurchStaff]
+    permission_classes = [permissions.IsAuthenticated, IsChurchStaff, MODULE]
     filterset_fields = ['plan', 'member']
 
 
@@ -85,7 +90,7 @@ class DuesPaymentViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = DuesPayment.objects.select_related('member', 'plan')
     serializer_class = DuesPaymentSerializer
-    permission_classes = [permissions.IsAuthenticated, IsChurchStaff]
+    permission_classes = [permissions.IsAuthenticated, IsChurchStaff, MODULE]
     filterset_fields = ['plan', 'member', 'status']
 
     def create(self, request):
@@ -117,7 +122,7 @@ class DuesPaymentViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 @api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.IsAuthenticated, MODULE])
 def member_card(request):
     """
     GET /dues/member-card/?plan=<id>&member=<id>  (staff)  one member's card.

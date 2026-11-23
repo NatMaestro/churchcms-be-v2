@@ -32,3 +32,4 @@ tests.test_dues
 tests.test_church_signup
 tests.test_initial_setup_removed
 tests.test_church_template
+tests.test_module_access

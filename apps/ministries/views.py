@@ -17,13 +17,18 @@ from django.db.models import Exists, OuterRef
 from core.member_context import acting_member
 from core.permissions import IsAdminOrReadOnly
 
+from apps.churches.module_access import requires_module
+
+# Every endpoint here refuses while the church has this module switched off.
+MODULE = requires_module('ministries')
+
 
 class MinistryViewSet(viewsets.ModelViewSet):
     """Ministry management viewset."""
     
     queryset = Ministry.objects.all()
     serializer_class = MinistrySerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly, MODULE]
     filterset_fields = ['category', 'is_active']
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
@@ -37,7 +42,7 @@ class MinistryViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         """Any signed-in church user may join or leave; changing ministries stays with admins."""
         if self.action in ('join', 'leave'):
-            return [permissions.IsAuthenticated()]
+            return [permissions.IsAuthenticated(), MODULE()]
         return super().get_permissions()
 
     def get_queryset(self):

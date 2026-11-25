@@ -13,6 +13,11 @@ from .models import AltarCall
 from .serializers import AltarCallSerializer, AltarCallListSerializer
 from core.member_context import is_church_staff
 
+from apps.churches.module_access import requires_module
+
+# Every endpoint here refuses while the church has this module switched off.
+MODULE = requires_module('altarCalls')
+
 
 class IsChurchStaff(permissions.BasePermission):
     message = 'Altar-call records are for church staff only.'
@@ -26,7 +31,7 @@ class AltarCallViewSet(viewsets.ModelViewSet):
     
     queryset = AltarCall.objects.all()
     serializer_class = AltarCallSerializer
-    permission_classes = [permissions.IsAuthenticated, IsChurchStaff]
+    permission_classes = [permissions.IsAuthenticated, IsChurchStaff, MODULE]
     filterset_fields = ['reason', 'service_type', 'follow_up_status']
     search_fields = ['member__first_name', 'member__last_name', 'visitor_name', 'notes']
     ordering_fields = ['service_date', 'created_at']

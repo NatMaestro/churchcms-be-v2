@@ -19,13 +19,18 @@ from core.member_context import acting_member, is_church_staff
 from core.permissions import IsAdminOrReadOnly
 from core.services import ExportService
 
+from apps.churches.module_access import requires_module
+
+# Every endpoint here refuses while the church has this module switched off.
+MODULE = requires_module('events')
+
 
 class EventViewSet(viewsets.ModelViewSet):
     """Event management viewset."""
     
     queryset = Event.objects.all()
     serializer_class = EventSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly, MODULE]
     filterset_fields = ['type', 'is_recurring']
     search_fields = ['title', 'description', 'location']
     ordering_fields = ['date', 'created_at', 'title']
@@ -42,7 +47,7 @@ class EventViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         """Any signed-in church user may register or unregister themselves."""
         if self.action in ('register', 'unregister'):
-            return [permissions.IsAuthenticated()]
+            return [permissions.IsAuthenticated(), MODULE()]
         return super().get_permissions()
 
     def _with_my_registration(self, events):

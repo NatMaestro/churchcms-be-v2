@@ -24,6 +24,11 @@ from .serializers import (
 )
 from core.permissions import IsAdminOrReadOnly
 
+from apps.churches.module_access import requires_module
+
+# Every endpoint here refuses while the church has this module switched off.
+MODULE = requires_module('volunteers')
+
 # Sign-ups that take a spot.
 ACTIVE_SIGNUP_STATUSES = ('pending', 'approved')
 
@@ -39,7 +44,7 @@ class VolunteerOpportunityViewSet(viewsets.ModelViewSet):
 
     queryset = VolunteerOpportunity.objects.all()
     serializer_class = VolunteerOpportunitySerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly, MODULE]
     filterset_fields = ['category', 'is_active', 'is_urgent', 'schedule']
     search_fields = ['title', 'description']
     ordering_fields = ['created_at', 'start_date', 'title']
@@ -47,7 +52,7 @@ class VolunteerOpportunityViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         """Any signed-in church user may sign up or withdraw; changing opportunities stays with staff."""
         if self.action in ('signup', 'withdraw'):
-            return [permissions.IsAuthenticated()]
+            return [permissions.IsAuthenticated(), MODULE()]
         return super().get_permissions()
 
     def get_queryset(self):
@@ -154,7 +159,7 @@ class VolunteerSignupViewSet(viewsets.ModelViewSet):
 
     queryset = VolunteerSignup.objects.all()
     serializer_class = VolunteerSignupSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly, MODULE]
     filterset_fields = ['status', 'opportunity']
     ordering_fields = ['signup_date', 'status']
 
@@ -185,7 +190,7 @@ class VolunteerHoursViewSet(viewsets.ModelViewSet):
 
     queryset = VolunteerHours.objects.all()
     serializer_class = VolunteerHoursSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly, MODULE]
     filterset_fields = ['member', 'opportunity', 'date']
     ordering_fields = ['date', 'hours']
 

@@ -20,6 +20,11 @@ from .serializers import (
     ServiceRequestSerializer,
 )
 
+from apps.churches.module_access import requires_module
+
+# Every endpoint here refuses while the church has this module switched off.
+MODULE = requires_module('serviceRequests')
+
 STAFF_ONLY_ACTIONS = ('update', 'partial_update', 'destroy', 'approve', 'reject', 'complete')
 
 
@@ -35,7 +40,7 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
 
     queryset = ServiceRequest.objects.all()
     serializer_class = ServiceRequestSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, MODULE]
     filterset_fields = ['type', 'status', 'priority']
     search_fields = ['title', 'description', 'member__first_name', 'member__last_name']
     ordering_fields = ['created_at', 'priority', 'status']
@@ -48,7 +53,7 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in STAFF_ONLY_ACTIONS:
-            return [permissions.IsAuthenticated(), IsChurchStaff()]
+            return [permissions.IsAuthenticated(), IsChurchStaff(), MODULE()]
         return super().get_permissions()
 
     def get_serializer_class(self):

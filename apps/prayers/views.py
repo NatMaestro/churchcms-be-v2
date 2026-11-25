@@ -22,6 +22,11 @@ from .serializers import (
     PrayerRequestSerializer,
 )
 
+from apps.churches.module_access import requires_module
+
+# Every endpoint here refuses while the church has this module switched off.
+MODULE = requires_module('prayerRequests')
+
 MEMBER_WRITE_ACTIONS = ('update', 'partial_update', 'destroy', 'mark_answered')
 
 
@@ -30,7 +35,7 @@ class PrayerRequestViewSet(viewsets.ModelViewSet):
 
     queryset = PrayerRequest.objects.all()
     serializer_class = PrayerRequestSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, MODULE]
     filterset_fields = ['category', 'urgency', 'status', 'is_public']
     search_fields = ['title', 'description']
     ordering_fields = ['created_at', 'urgency', 'status']

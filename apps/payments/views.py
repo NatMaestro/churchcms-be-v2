@@ -25,6 +25,11 @@ from core.member_context import is_church_staff
 from core.permissions import IsAdminOrReadOnly
 from core.services import ExportService
 
+from apps.churches.module_access import requires_module
+
+# Every endpoint here refuses while the church has this module switched off.
+MODULE = requires_module('giving')
+
 
 logger = logging.getLogger(__name__)
 NEWLINE = chr(10)
@@ -49,7 +54,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly, MODULE]
     filterset_fields = ['type', 'method', 'status', 'fiscal_year']
     search_fields = ['reference', 'member__first_name', 'member__last_name']
     ordering_fields = ['date', 'amount', 'created_at']
@@ -201,7 +206,7 @@ class PledgeViewSet(viewsets.ModelViewSet):
     
     queryset = Pledge.objects.all()
     serializer_class = PledgeSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly, MODULE]
     filterset_fields = ['status', 'frequency']
     ordering_fields = ['start_date', 'amount']
     
@@ -218,7 +223,7 @@ class TaxReceiptViewSet(viewsets.ModelViewSet):
     
     queryset = TaxReceipt.objects.all()
     serializer_class = TaxReceiptSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, MODULE]
     filterset_fields = ['fiscal_year']
     ordering_fields = ['fiscal_year', 'generated_at']
     

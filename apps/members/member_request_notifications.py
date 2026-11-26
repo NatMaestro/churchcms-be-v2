@@ -59,12 +59,15 @@ def email_admins_of_new_request(church, member_request):
             )
 
 
-def send_member_invite(user, church):
+def send_member_invite(user, church, intro=None):
     """
     Email `user` a single-use link, valid for INVITE_LIFETIME_HOURS, to set
     their password. Any earlier invite or reset link stops working.
+    `intro` is the opening sentence; it defaults to the confirmed-application one.
     Returns True if the email was handed to the mail server.
     """
+    if intro is None:
+        intro = f"Your membership of {church.name} has been confirmed."
     token = issue_password_token(user, INVITE_LIFETIME)
     invite_link = frontend_url(f'/reset-password?token={token}&invite=1', church)
     try:
@@ -72,7 +75,7 @@ def send_member_invite(user, church):
             subject=f'Activate your {settings.PLATFORM_NAME} account for {church.name}',
             message=(
                 f"Hello {user.name},\n\n"
-                f"Your membership of {church.name} has been confirmed. "
+                f"{intro} "
                 "Set your password to activate your account. "
                 f"This link works once and expires in {INVITE_LIFETIME_HOURS} hours:\n\n"
                 f"{invite_link}\n\n"

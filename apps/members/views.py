@@ -2,9 +2,15 @@
 Member views with export functionality.
 """
 
+import logging
+
+from django.db import connection, transaction
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from apps.authentication.models import User
+from apps.churches.models import Church
+from .member_request_notifications import send_member_invite
 from .models import Member, MemberWorkflow
 from .serializers import (
     MemberSerializer,
@@ -14,7 +20,9 @@ from .serializers import (
 )
 from core.services import ExportService
 from core.member_context import is_church_staff, member_for
-from core.permissions import IsChurchAdmin, IsAdminOrReadOnly
+from core.permissions import IsChurchAdmin, IsChurchAdminOrSuperAdmin, IsAdminOrReadOnly
+
+logger = logging.getLogger(__name__)
 
 
 class MemberViewSet(viewsets.ModelViewSet):
@@ -60,6 +68,74 @@ class MemberViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_404_NOT_FOUND)
         return Response(MemberDetailSerializer(member, context=self.get_serializer_context()).data)
     
+    @action(detail=True, methods=['post'],
+            permission_classes=[permissions.IsAuthenticated, IsChurchAdminOrSuperAdmin])
+    def invite(self, request, pk=None):
+        """
+        Give a member their login: create it with no usable password, link it to
+        the member, and email a single-use link to set the password. Calling it
+        again emails a fresh link (earlier links stop working) until the member
+        has set a password.
+
+        POST /api/v1/members/:id/invite/
+        """
+        member = self.get_object()
+        church = connection.get_tenant()
+        if not isinstance(church, Church):
+            return Response({'success': False, 'error': 'Could not determine church context'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if not member.email:
+            return Response({'success': False, 'error': 'Add an email address for this member first.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        user = member.user
+        created = user is None
+        if created:
+            # Logins are global (one church per account), as in member-request confirm.
+            if User.objects.filter(email__iexact=member.email).exists():
+                return Response({
+                    'success': False,
+                    'error': 'This email already has an account, so a new member login cannot be created for it.'
+                }, status=status.HTTP_409_CONFLICT)
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    email=member.email,
+                    password=None,  # Unusable until they set one via the emailed invite link
+                    name=member.full_name.strip() or member.email,
+                    church=church,
+                    role='member',
+                    is_active=True,
+                    must_change_password=True,
+                )
+                member.user = user
+                member.save(update_fields=['user'])
+        elif user.has_usable_password():
+            return Response({
+                'success': False,
+                'error': 'This member has already set a password. They can use "Forgot password" if needed.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        elif not user.is_active:
+            return Response({'success': False, 'error': "This member's login is switched off."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Sent only after the login is committed; a failed email leaves it in
+        # place and the admin can call this again.
+        invite_sent = send_member_invite(user, church, intro=f"{church.name} has added you as a member.")
+        if not created and not invite_sent:
+            return Response({'success': False, 'error': 'The invite email could not be sent. Please try again later.'},
+                            status=status.HTTP_502_BAD_GATEWAY)
+        if invite_sent:
+            message = 'An invite to set their password has been emailed.'
+        else:
+            message = 'The login was created, but the invite email could not be sent. Try sending it again.'
+        logger.info('member_invite', extra={'member_id': member.pk, 'user_id': user.pk,
+                                            'login_created': created, 'invite_sent': invite_sent})
+        return Response({
+            'success': True,
+            'message': message,
+            'data': {'user_id': user.pk, 'login_email': user.email, 'invite_sent': invite_sent},
+        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
     @action(detail=False, methods=['get'])
     def export_csv(self, request):
         """

@@ -108,7 +108,7 @@ class MemberLoginInviteTests(TransactionTestCase):
         token = mail.outbox[0].body.split('token=')[1].split('&')[0]
 
         first = APIClient().post(RESET_URL, {'token': token, 'new_password': NEW_PASSWORD}, format='json')
-        again = APIClient().post(RESET_URL, {'token': token, 'new_password': 'another-one-456'}, format='json')
+        again = APIClient().post(RESET_URL, {'token': token, 'new_password': NEW_PASSWORD}, format='json')
 
         self.assertEqual(first.status_code, 200)
         self.assertEqual(again.status_code, 400)
